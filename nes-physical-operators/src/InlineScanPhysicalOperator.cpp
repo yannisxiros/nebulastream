@@ -78,7 +78,7 @@ void ScanPhysicalOperator::open(ExecutionContext& executionCtx, RecordBuffer& re
     openChild(executionCtx, recordBuffer);
     /// iterate over records in buffer
     auto memSize = recordBuffer.getMemSize();
-    for (nautilus::val<uint64_t> i = 0_u64; i != memSize;)
+    for (nautilus::val<uint64_t> i = 0_u64; i < memSize;)
     {
         auto record = bufferRef->readRecord(projections, recordBuffer, i);
         executeChild(executionCtx, record);

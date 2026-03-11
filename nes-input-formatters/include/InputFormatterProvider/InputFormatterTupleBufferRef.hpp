@@ -75,8 +75,8 @@ public:
 
     void readBuffer(ExecutionContext& executionCtx, const RecordBuffer& recordBuffer, const ExecuteChildFn& executeChild) const;
 
-    nautilus::val<uint32_t>
-    writeRecord(nautilus::val<uint64_t>&, const RecordBuffer&, const Record&, const nautilus::val<AbstractBufferProvider*>&) const override
+    void
+    writeRecord(nautilus::val<uint64_t>&, RecordBuffer&, const Record&, const nautilus::val<AbstractBufferProvider*>&) override
     {
         INVARIANT(false, "unsupported operation on InputFormatterBufferRef");
         std::unreachable();

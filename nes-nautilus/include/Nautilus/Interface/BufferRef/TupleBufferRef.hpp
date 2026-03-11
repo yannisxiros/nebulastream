@@ -70,11 +70,11 @@ public:
     /// @param recordBuffer: Stores the memRef to the memory segment of a tuplebuffer, e.g., tuplebuffer.getMemArea()
     /// @param recordIndex: Index of the record to be stored to
     /// @param rec: Record to be stored
-    virtual nautilus::val<uint32_t> writeRecord(
+    virtual void writeRecord(
         nautilus::val<uint64_t>& recordIndex,
-        const RecordBuffer& recordBuffer,
+        RecordBuffer& recordBuffer,
         const Record& rec,
-        const nautilus::val<AbstractBufferProvider*>& bufferProvider) const
+        const nautilus::val<AbstractBufferProvider*>& bufferProvider)
         = 0;
 
     [[nodiscard]] uint64_t getCapacity() const;

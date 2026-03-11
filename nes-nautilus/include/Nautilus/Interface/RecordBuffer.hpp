@@ -40,6 +40,7 @@ public:
 
     nautilus::val<uint64_t> getMemSize() const;
     void setMemSize(const nautilus::val<uint64_t>& memSize);
+    void incMemSize(const nautilus::val<uint64_t>& inc);
 
     /// Retrieve the reference to the underling memory area from the record buffer.
     [[nodiscard]] nautilus::val<int8_t*> getMemArea() const;

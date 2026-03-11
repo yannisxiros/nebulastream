@@ -25,6 +25,7 @@ namespace NES
 class Record
 {
 public:
+    nautilus::val<uint32_t> size;
     using RecordFieldIdentifier = std::string;
     explicit Record() = default;
     explicit Record(std::unordered_map<RecordFieldIdentifier, VarVal>&& recordFields);

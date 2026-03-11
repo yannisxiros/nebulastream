@@ -46,14 +46,23 @@ nautilus::val<int8_t*> calculateFieldAddress(const nautilus::val<int8_t*>& recor
 }
 }
 
+
+std::span<std::byte> InlineTupleBufferRef::readString(const TupleBuffer& tupleBuffer, VariableSizedAccess variableSizedAccess)
+{
+    auto bufferToRead = variableSizedAccess.getIndex().getRawIndex() == -1U ? tupleBuffer : tupleBuffer.loadChildBuffer(variableSizedAccess.getIndex());
+    const auto varSizedSpan = bufferToRead.getAvailableMemoryArea().subspan(variableSizedAccess.getOffset().getRawOffset());
+    return varSizedSpan.subspan(0, variableSizedAccess.getSize().getRawSize());
+}
+
 Record InlineTupleBufferRef::readRecord(
     const std::vector<Record::RecordFieldIdentifier>& projections,
     const RecordBuffer& recordBuffer,
     nautilus::val<uint64_t>& recordIndex) const
 {
     Record record;
+    record.size = tupleSize;
     const auto bufferAddress = recordBuffer.getMemArea();
-    const auto recordAddress = bufferAddress + (tupleSize * recordIndex);
+    const auto recordAddress = bufferAddress + recordIndex;
     for (nautilus::static_val<uint64_t> i = 0; i < fields.size(); ++i)
     {
         const auto& [name, type, fieldOffset] = fields.at(i);
@@ -62,8 +71,36 @@ Record InlineTupleBufferRef::readRecord(
             continue;
         }
         auto fieldAddress = calculateFieldAddress(recordAddress, fieldOffset);
-        auto value = loadValue(type, recordBuffer, fieldAddress);
-        record.write(name, value);
+        if (type.type != DataType::Type::VARSIZED)
+        {
+            record.write(name, VarVal::readVarValFromMemory(fieldAddress, type.type));
+            continue;
+        }
+
+        auto variableSizedAccess = static_cast<nautilus::val<VariableSizedAccess*>>(fieldAddress);
+
+        const auto varSizedPtr = invoke(
+            +[](const TupleBuffer* tupleBuffer, const VariableSizedAccess* variableSizedAccessPtr)
+            {
+                INVARIANT(tupleBuffer != nullptr, "Tuplebuffer MUST NOT be null at this point");
+                INVARIANT(variableSizedAccessPtr != nullptr, "VariableSizedAccess MUST NOT be null at this point");
+                return readString(*tupleBuffer, *variableSizedAccessPtr).data();
+            },
+            recordBuffer.getReference(),
+            variableSizedAccess);
+
+        record.size += invoke(
+            +[](const VariableSizedAccess* variableSizedAccessPtr)
+            {
+                INVARIANT(variableSizedAccessPtr != nullptr, "VariableSizedAccess MUST NOT be null at this point");
+                if (variableSizedAccessPtr->getIndex().getRawIndex() == -1U)
+                    return variableSizedAccessPtr->getSize().getRawSize();
+                return uint64_t{0};
+            },
+            variableSizedAccess);
+
+        const nautilus::val<uint64_t> size = *getMemberWithOffset<uint64_t>(variableSizedAccess, offsetof(VariableSizedAccess, size));
+        record.write(name ,VariableSizedData(varSizedPtr, size));
     }
     return record;
 }
@@ -95,24 +132,33 @@ void copyVarSizedAndIncrementMetaData(
     const auto spaceInChildBuffer = childBuffer.getAvailableMemoryArea().subspan(offset.getRawOffset());
     PRECONDITION(spaceInChildBuffer.size() >= varSizedValue.size(), "SpaceInChildBuffer must be larger than varSizedValue");
     std::ranges::copy(varSizedValue, spaceInChildBuffer.begin());
-    childBuffer.setMemSize(offset.getRawOffset() + varSizedValue.size());
 }
 }
 
 
 
 VariableSizedAccess writeString(
-    TupleBuffer& tupleBuffer, AbstractBufferProvider& bufferProvider, const std::span<const std::byte> varSizedValue, const uint32_t offsetToPlace)
+    TupleBuffer& tupleBuffer,
+    AbstractBufferProvider& bufferProvider,
+    const std::span<const std::byte> varSizedValue,
+    const uint32_t offsetToPlace)
 {
     const auto totalVarSizedLength = varSizedValue.size();
     if (offsetToPlace + totalVarSizedLength <= tupleBuffer.getBufferSize())
     {
-        copyVarSizedAndIncrementMetaData(tupleBuffer,VariableSizedAccess::Offset{offsetToPlace}, varSizedValue);
-        return VariableSizedAccess{VariableSizedAccess::Index{-1U}, VariableSizedAccess::Offset{offsetToPlace}, VariableSizedAccess::Size{totalVarSizedLength}};
+        copyVarSizedAndIncrementMetaData(tupleBuffer, VariableSizedAccess::Offset{offsetToPlace}, varSizedValue);
+        return VariableSizedAccess{
+            VariableSizedAccess::Index{-1U}, VariableSizedAccess::Offset{offsetToPlace}, VariableSizedAccess::Size{totalVarSizedLength}};
     }
     const auto numberOfChildBuffers = tupleBuffer.getNumberOfChildBuffers();
-    /// If there is no space in the lastChildBuffer, we get a new buffer and copy the var sized into the newly acquired
-    /// We store the number of used bytes in the no. tuples field.  We plan on getting rid of this "mis"-use in the near future.
+    if (numberOfChildBuffers == 0)
+    {
+        auto newChildBuffer = getNewBufferForVarSized(bufferProvider, totalVarSizedLength);
+        copyVarSizedAndIncrementMetaData(newChildBuffer, VariableSizedAccess::Offset{0}, varSizedValue);
+        const VariableSizedAccess::Index childBufferIndex{tupleBuffer.storeChildBuffer(newChildBuffer)};
+        return VariableSizedAccess{childBufferIndex, VariableSizedAccess::Size{totalVarSizedLength}};
+    }
+
     const VariableSizedAccess::Index childIndex{numberOfChildBuffers - 1};
     auto lastChildBuffer = tupleBuffer.loadChildBuffer(childIndex);
     const auto usedMemorySize = lastChildBuffer.getMemSize();
@@ -130,15 +176,14 @@ VariableSizedAccess writeString(
     return VariableSizedAccess{childIndex, childOffset, VariableSizedAccess::Size{totalVarSizedLength}};
 }
 
-
-nautilus::val<uint32_t> InlineTupleBufferRef::writeRecord(
-    nautilus::val<uint64_t>& recordOffset,
-    const RecordBuffer& recordBuffer,
+void InlineTupleBufferRef::writeRecord(
+    nautilus::val<uint64_t>& recordOffset [[maybe_unused]],
+    RecordBuffer& recordBuffer,
     const Record& rec,
-    const nautilus::val<AbstractBufferProvider*>& bufferProvider) const
+    const nautilus::val<AbstractBufferProvider*>& bufferProvider)
 {
     const auto bufferAddress = recordBuffer.getMemArea();
-    const auto recordAddress = bufferAddress + recordOffset;
+    const auto recordAddress = bufferAddress + recordBuffer.getMemSize();
     nautilus::val<uint32_t> runningSize = tupleSize;
     for (nautilus::static_val<uint64_t> i = 0; i < fields.size(); ++i)
     {
@@ -181,18 +226,18 @@ nautilus::val<uint32_t> InlineTupleBufferRef::writeRecord(
                 const VariableSizedAccess writtenAccess = writeString(*tupleBuffer, *bufferProvider,
                     std::as_bytes(varSizedValueSpan), offsetToPlace);
                 *refToIndex = writtenAccess;
-                return 0;
+                if (writtenAccess.getIndex().getRawIndex() == -1U)
+                    return varSizedValueLength;
+                return uint64_t{0};
             },
             recordBuffer.getReference(),
             bufferProvider,
             varSizedValue.getContent(),
             varSizedValue.getSize(),
             refToIndex,
-            runningSize+recordOffset);
-
-        runningSize += varSizedValue.getSize();
+            runningSize+recordBuffer.getMemSize());
     }
-    return runningSize;
+    recordBuffer.incMemSize(runningSize);
 }
 
 std::vector<Record::RecordFieldIdentifier> InlineTupleBufferRef::getAllFieldNames() const

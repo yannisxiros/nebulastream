@@ -66,11 +66,11 @@ Record RowTupleBufferRef::readRecord(
     return record;
 }
 
-nautilus::val<uint32_t> RowTupleBufferRef::writeRecord(
+void RowTupleBufferRef::writeRecord(
     nautilus::val<uint64_t>& recordIndex,
-    const RecordBuffer& recordBuffer,
+    RecordBuffer& recordBuffer,
     const Record& rec,
-    const nautilus::val<AbstractBufferProvider*>& bufferProvider) const
+    const nautilus::val<AbstractBufferProvider*>& bufferProvider)
 {
     const auto bufferAddress = recordBuffer.getMemArea();
     const auto recordOffset = bufferAddress + (tupleSize * recordIndex);
@@ -86,7 +86,6 @@ nautilus::val<uint32_t> RowTupleBufferRef::writeRecord(
         const auto& value = rec.read(name);
         storeValue(type, recordBuffer, fieldAddress, value, bufferProvider);
     }
-    return {0};
 }
 
 std::vector<Record::RecordFieldIdentifier> RowTupleBufferRef::getAllFieldNames() const

@@ -16,11 +16,11 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <iostream>
 #include <ranges>
 #include <span>
 #include <sstream>
 #include <string>
+#include <cstring>
 #include <DataTypes/Schema.hpp>
 #include <Runtime/TupleBuffer.hpp>
 #include <Runtime/VariableSizedAccess.hpp>
@@ -57,25 +57,42 @@ std::string JSONFormat::tupleBufferToFormattedJSONString(TupleBuffer tbuffer, co
 {
     std::stringstream ss;
     const auto numberOfTuples = tbuffer.getNumberOfTuples();
-    const auto buffer = tbuffer.getAvailableMemoryArea().subspan(0, numberOfTuples * formattingContext.schemaSizeInBytes);
-    for (size_t i = 0; i < numberOfTuples; i++)
+    // Use the running memSize like CSVFormat: if TupleBuffer reports memSize==0 fall back to numberOfTuples * schemaSizeInBytes
+    const auto memSize = tbuffer.getMemSize() == 0 ? numberOfTuples * formattingContext.schemaSizeInBytes : tbuffer.getMemSize();
+    const auto tupleSize = formattingContext.schemaSizeInBytes;
+    const auto buffer = tbuffer.getAvailableMemoryArea().subspan(0, memSize);
+
+    for (size_t i = 0; i != memSize; i += tupleSize)
     {
-        auto tuple = buffer.subspan(i * formattingContext.schemaSizeInBytes, formattingContext.schemaSizeInBytes);
+        auto tuple = buffer.subspan(i, formattingContext.schemaSizeInBytes);
         auto fields
             = std::views::iota(static_cast<size_t>(0), formattingContext.offsets.size())
             | std::views::transform(
-                  [&formattingContext, &tuple, &tbuffer](const auto& index)
+                  [&formattingContext, &tuple, &tbuffer, &i](const auto& index)
                   {
                       auto type = formattingContext.physicalTypes[index];
                       auto offset = formattingContext.offsets[index];
                       if (type.type == DataType::Type::VARSIZED)
                       {
-                          auto* const variableSizedAccess = reinterpret_cast<VariableSizedAccess*>(&tuple[offset]);
-                          const auto value = TupleBufferRef::loadAssociatedVarSizedValue(tbuffer, *variableSizedAccess);
-                          return fmt::format(
-                              R"("{}":"{}")",
-                              formattingContext.names.at(index),
-                              std::string_view(reinterpret_cast<const char*>(value.data()), value.size()));
+                          const auto base = offset;
+                          uint64_t idx{};
+                          uint64_t off{};
+                          uint64_t size{};
+                          auto indexAddress = &tuple[base + offsetof(VariableSizedAccess, index)];
+                          auto offsetAddress = &tuple[base + offsetof(VariableSizedAccess, offset)];
+                          auto sizeAddress = &tuple[base + offsetof(VariableSizedAccess, size)];
+                          std::memcpy(&idx, indexAddress, sizeof(uint32_t));
+                          std::memcpy(&off, offsetAddress, sizeof(uint32_t));
+                          std::memcpy(&size, sizeAddress, sizeof(uint64_t));
+                          const VariableSizedAccess variableSizedAccess{VariableSizedAccess{
+                              VariableSizedAccess::Index(static_cast<uint32_t>(idx)), VariableSizedAccess::Offset(static_cast<uint32_t>(off)), VariableSizedAccess::Size(static_cast<uint64_t>(size))}};
+                          auto varSizedData = readVarSizedDataAsString(tbuffer, variableSizedAccess);
+                          // If the value was inlined (index == -1U) the actual memory contains the inline bytes after the fixed-size tuple area.
+                          if (idx == static_cast<uint64_t>(-1))
+                          {
+                              i += size;
+                          }
+                          return fmt::format(R"("{}":"{}")", formattingContext.names.at(index), varSizedData);
                       }
                       return fmt::format("\"{}\":{}", formattingContext.names.at(index), type.formattedBytesToString(&tuple[offset]));
                   });

@@ -69,6 +69,7 @@ PhysicalOperator createScanOperator(
             configuredBufferSize);
     }
 
+    // const auto memoryProvider = LowerSchemaProvider::lowerSchema(configuredBufferSize, inputSchema.value(), MemoryLayoautType::STRINGS_INLINE);
     const auto memoryProvider = LowerSchemaProvider::lowerSchema(configuredBufferSize, inputSchema.value(), memoryLayout.value());
     /// Instantiate the scan with an InputFormatterTupleBufferRef, if the prior operatior is a source operator that contains a source descriptor
     /// with a parser type other than "NATIVE" (NATIVE data does not require formatting)
@@ -78,10 +79,10 @@ PhysicalOperator createScanOperator(
         if (toUpperCase(inputFormatterConfig.parserType) != "NATIVE")
         {
             return ScanPhysicalOperator(
-                provideInputFormatterTupleBufferRef(inputFormatterConfig, memoryProvider), inputSchema->getFieldNames());
+                provideInputFormatterTupleBufferRef(inputFormatterConfig,  LowerSchemaProvider::lowerSchema(configuredBufferSize, inputSchema.value(), memoryLayout.value())), inputSchema->getFieldNames());
         }
     }
-    return ScanPhysicalOperator(memoryProvider, inputSchema->getFieldNames());
+    return ScanPhysicalOperator( LowerSchemaProvider::lowerSchema(configuredBufferSize, inputSchema.value(), MemoryLayoutType::STRINGS_INLINE), inputSchema->getFieldNames());
 }
 
 /// Creates a new pipeline that contains a scan followed by the wrappedOpAfterScan. The newly created pipeline is a successor of the prevPipeline
@@ -111,7 +112,7 @@ void addDefaultEmit(const std::shared_ptr<Pipeline>& pipeline, const PhysicalOpe
     INVARIANT(schema.has_value(), "Wrapped operator has no output schema");
     INVARIANT(memoryLayoutType.has_value(), "Wrapped operator has no output memory layout type");
 
-    const auto bufferRef = LowerSchemaProvider::lowerSchema(configuredBufferSize, schema.value(), memoryLayoutType.value());
+    const auto bufferRef = LowerSchemaProvider::lowerSchema(configuredBufferSize, schema.value(), MemoryLayoutType::STRINGS_INLINE);
     /// Create an operator handler for the emit
     const OperatorHandlerId operatorHandlerIndex = getNextOperatorHandlerId();
     pipeline->getOperatorHandlers().emplace(operatorHandlerIndex, std::make_shared<EmitOperatorHandler>());

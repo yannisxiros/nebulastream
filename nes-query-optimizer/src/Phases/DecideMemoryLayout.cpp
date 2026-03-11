@@ -36,7 +36,7 @@ LogicalOperator DecideMemoryLayout::apply(const LogicalOperator& logicalOperator
     const auto children = logicalOperator.getChildren()
         | std::views::transform([this](const LogicalOperator& child) { return apply(child); }) | std::ranges::to<std::vector>();
     auto traitSet = logicalOperator.getTraitSet();
-    tryInsert(traitSet, MemoryLayoutTypeTrait{MemoryLayoutType::STRINGS_INLINE});
+    tryInsert(traitSet, MemoryLayoutTypeTrait{MemoryLayoutType::ROW_LAYOUT});
     return logicalOperator.withChildren(children).withTraitSet(traitSet);
 }
 }

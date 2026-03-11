@@ -74,8 +74,8 @@ class TupleBuffer
     friend class LocalBufferPool;
     friend class detail::MemorySegment;
 
-    [[nodiscard]] explicit TupleBuffer(detail::BufferControlBlock* controlBlock, uint8_t* ptr, uint32_t size, uint32_t fixedTupleSize) noexcept
-        : controlBlock(controlBlock), ptr(ptr), size(size), fixedSizeTupleSize(fixedTupleSize)
+    [[nodiscard]] explicit TupleBuffer(detail::BufferControlBlock* controlBlock, uint8_t* ptr, uint32_t size) noexcept
+        : controlBlock(controlBlock), ptr(ptr), size(size)
     {
         /// nop
     }
@@ -146,11 +146,10 @@ public:
     [[nodiscard]] uint64_t getNumberOfTuples() const noexcept;
     void setNumberOfTuples(uint64_t numberOfTuples) const noexcept;
 
-    uint32_t getFixedSizeTupleSize() const noexcept;
-
     // New mem size accessors: returns number of bytes used inside the available memory area.
     [[nodiscard]] uint64_t getMemSize() const noexcept;
     void setMemSize(uint64_t memSize) const noexcept;
+    void incMemSize(uint64_t inc) const noexcept;
 
     [[nodiscard]] Timestamp getWatermark() const noexcept;
     void setWatermark(Timestamp value) noexcept;
@@ -193,7 +192,6 @@ private:
     detail::BufferControlBlock* controlBlock = nullptr;
     uint8_t* ptr = nullptr;
     uint32_t size = 0;
-    uint32_t fixedSizeTupleSize = 0;
 };
 
 /**

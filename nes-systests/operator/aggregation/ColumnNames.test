@@ -1,3 +1,4 @@
+
 # name: operator/aggregation/ColumnName.test
 # description: Tests automatic name creation of aggregation function
 # groups: [Aggregation]

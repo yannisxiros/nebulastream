@@ -101,6 +101,7 @@ public:
     void setNumberOfTuples(uint64_t);
     [[nodiscard]] uint64_t getMemSize() const noexcept;
     void setMemSize(uint64_t);
+    void incMemSize(uint64_t);
     [[nodiscard]] Timestamp getWatermark() const noexcept;
     void setWatermark(Timestamp watermark);
     [[nodiscard]] SequenceNumber getSequenceNumber() const noexcept;

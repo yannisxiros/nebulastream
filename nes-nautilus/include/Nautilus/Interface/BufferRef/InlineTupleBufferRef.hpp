@@ -57,16 +57,18 @@ public:
 
     [[nodiscard]] std::vector<DataType> getAllDataTypes() const override;
 
+    static std::span<std::byte> readString(const TupleBuffer& tupleBuffer, VariableSizedAccess variableSizedAccess);
+
     Record readRecord(
         const std::vector<Record::RecordFieldIdentifier>& projections,
         const RecordBuffer& recordBuffer,
         nautilus::val<uint64_t>& recordIndex) const override;
 
-    nautilus::val<uint32_t> writeRecord(
+    void writeRecord(
         nautilus::val<uint64_t>& recordOffset,
-        const RecordBuffer& recordBuffer,
+        RecordBuffer& recordBuffer,
         const Record& rec,
-        const nautilus::val<AbstractBufferProvider*>& bufferProvider) const override;
+        const nautilus::val<AbstractBufferProvider*>& bufferProvider) override;
 };
 
 }
