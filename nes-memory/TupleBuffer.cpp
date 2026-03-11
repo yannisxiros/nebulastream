@@ -114,6 +114,16 @@ uint64_t TupleBuffer::getBufferSize() const noexcept
     return size;
 }
 
+uint64_t TupleBuffer::getMemSize() const noexcept
+{
+    return controlBlock->getMemSize();
+}
+
+void TupleBuffer::setMemSize(uint64_t memSize) const noexcept
+{
+    controlBlock->setMemSize(static_cast<uint32_t>(memSize));
+}
+
 void TupleBuffer::setNumberOfTuples(const uint64_t numberOfTuples) const noexcept
 {
     controlBlock->setNumberOfTuples(numberOfTuples);

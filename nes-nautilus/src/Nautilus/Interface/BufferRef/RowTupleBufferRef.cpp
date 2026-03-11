@@ -66,7 +66,7 @@ Record RowTupleBufferRef::readRecord(
     return record;
 }
 
-void RowTupleBufferRef::writeRecord(
+nautilus::val<uint32_t> RowTupleBufferRef::writeRecord(
     nautilus::val<uint64_t>& recordIndex,
     const RecordBuffer& recordBuffer,
     const Record& rec,
@@ -86,6 +86,7 @@ void RowTupleBufferRef::writeRecord(
         const auto& value = rec.read(name);
         storeValue(type, recordBuffer, fieldAddress, value, bufferProvider);
     }
+    return {0};
 }
 
 std::vector<Record::RecordFieldIdentifier> RowTupleBufferRef::getAllFieldNames() const

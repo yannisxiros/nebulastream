@@ -41,11 +41,19 @@ namespace NES
 class EmitState : public OperatorState
 {
 public:
-    explicit EmitState(const RecordBuffer& resultBuffer) : resultBuffer(resultBuffer), bufferMemoryArea(resultBuffer.getMemArea()) { }
+    explicit EmitState(const RecordBuffer& resultBuffer) : resultBuffer(resultBuffer)
+    {
+                fixedTupleSize = invoke(
+                    +[](TupleBuffer* tupleBuffer)
+                    {
+                        return tupleBuffer->getFixedSizeTupleSize();
+                    },
+                    resultBuffer.getReference());    }
 
     nautilus::val<uint64_t> outputIndex = 0;
+    nautilus::val<uint64_t> numRecords = 0;
+    nautilus::val<uint32_t> fixedTupleSize = 0;
     RecordBuffer resultBuffer;
-    nautilus::val<int8_t*> bufferMemoryArea;
 };
 
 void EmitPhysicalOperator::open(ExecutionContext& ctx, RecordBuffer&) const
@@ -61,12 +69,11 @@ void EmitPhysicalOperator::execute(ExecutionContext& ctx, Record& record) const
 {
     auto* const emitState = dynamic_cast<EmitState*>(ctx.getLocalState(id));
     /// emit buffer if it reached the maximal capacity
-    if (emitState->outputIndex >= getMaxRecordsPerBuffer())
+    if (emitState->outputIndex + emitState->resultBuffer.getReference() >= getMaxRecordsPerBuffer())
     {
         emitRecordBuffer(ctx, emitState->resultBuffer, emitState->outputIndex, false);
         const auto resultBufferRef = ctx.allocateBuffer();
         emitState->resultBuffer = RecordBuffer(resultBufferRef);
-        emitState->bufferMemoryArea = emitState->resultBuffer.getMemArea();
         emitState->outputIndex = 0_u64;
     }
 

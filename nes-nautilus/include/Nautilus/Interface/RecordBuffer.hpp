@@ -38,6 +38,9 @@ public:
     void setNumRecords(const nautilus::val<uint64_t>& numRecordsValue);
     [[nodiscard]] nautilus::val<uint64_t> getNumRecords() const;
 
+    nautilus::val<uint64_t> getMemSize() const;
+    void setMemSize(const nautilus::val<uint64_t>& memSize);
+
     /// Retrieve the reference to the underling memory area from the record buffer.
     [[nodiscard]] nautilus::val<int8_t*> getMemArea() const;
 

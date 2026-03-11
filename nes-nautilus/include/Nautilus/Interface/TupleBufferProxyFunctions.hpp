@@ -41,6 +41,16 @@ void inline NES_Memory_TupleBuffer_setNumberOfTuples(TupleBuffer* tupleBuffer, c
     tupleBuffer->setNumberOfTuples(numberOfTuples);
 }
 
+inline uint64_t NES_Memory_TupleBuffer_getMemSize(const TupleBuffer* tupleBuffer)
+{
+    return tupleBuffer->getMemSize();
+};
+
+void inline NES_Memory_TupleBuffer_setMemSize(TupleBuffer* tupleBuffer, const uint64_t memSize)
+{
+    tupleBuffer->setMemSize(memSize);
+}
+
 inline OriginId NES_Memory_TupleBuffer_getOriginId(const TupleBuffer* tupleBuffer)
 {
     return tupleBuffer->getOriginId();

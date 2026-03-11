@@ -70,7 +70,7 @@ Record ColumnTupleBufferRef::readRecord(
     return record;
 }
 
-void ColumnTupleBufferRef::writeRecord(
+nautilus::val<uint32_t> ColumnTupleBufferRef::writeRecord(
     nautilus::val<uint64_t>& recordIndex,
     const RecordBuffer& recordBuffer,
     const Record& rec,
@@ -89,6 +89,7 @@ void ColumnTupleBufferRef::writeRecord(
         const auto& value = rec.read(name);
         storeValue(type, recordBuffer, fieldAddress, value, bufferProvider);
     }
+    return {0};
 }
 
 std::vector<Record::RecordFieldIdentifier> ColumnTupleBufferRef::getAllFieldNames() const

@@ -14,5 +14,6 @@ add_source_files(nes-nautilus
         TupleBufferRef.cpp
         ColumnTupleBufferRef.cpp
         RowTupleBufferRef.cpp
+        InlineTupleBufferRef.cpp
         LowerSchemaProvider.cpp
         )

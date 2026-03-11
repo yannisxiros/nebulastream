@@ -14,6 +14,7 @@
 
 #pragma once
 
+
 #include <cstdint>
 #include <vector>
 #include <DataTypes/DataType.hpp>
@@ -28,30 +29,32 @@ class LowerSchemaProvider;
 namespace NES
 {
 
-/// Implements BufferRef. Provides columnar memory access.
-class ColumnTupleBufferRef final : public TupleBufferRef
+/// Implements BufferRef. Provides row-wise memory access.
+class InlineTupleBufferRef final : public TupleBufferRef
 {
     struct Field
     {
         Record::RecordFieldIdentifier name;
         DataType type;
-        uint64_t columnOffset;
+        uint64_t fieldOffset;
     };
 
     std::vector<Field> fields;
 
     /// Private constructor to prevent direct instantiation
-    explicit ColumnTupleBufferRef(std::vector<Field> fields, uint64_t capacity, uint64_t bufferSize);
+    explicit InlineTupleBufferRef(std::vector<Field> fields, uint64_t tupleSize, uint64_t bufferSize);
 
     /// Allow LowerSchemaProvider::lowerSchema() access to private constructor and Field
     friend class NES::LowerSchemaProvider;
 
 public:
-    ColumnTupleBufferRef(const ColumnTupleBufferRef&) = default;
-    ColumnTupleBufferRef(ColumnTupleBufferRef&&) = default;
-    ~ColumnTupleBufferRef() override = default;
+    InlineTupleBufferRef(const InlineTupleBufferRef&) = default;
+    InlineTupleBufferRef(InlineTupleBufferRef&&) = default;
+
+    ~InlineTupleBufferRef() override = default;
 
     [[nodiscard]] std::vector<Record::RecordFieldIdentifier> getAllFieldNames() const override;
+
     [[nodiscard]] std::vector<DataType> getAllDataTypes() const override;
 
     Record readRecord(
@@ -60,7 +63,7 @@ public:
         nautilus::val<uint64_t>& recordIndex) const override;
 
     nautilus::val<uint32_t> writeRecord(
-        nautilus::val<uint64_t>& recordIndex,
+        nautilus::val<uint64_t>& recordOffset,
         const RecordBuffer& recordBuffer,
         const Record& rec,
         const nautilus::val<AbstractBufferProvider*>& bufferProvider) const override;

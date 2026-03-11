@@ -239,6 +239,16 @@ void BufferControlBlock::setNumberOfTuples(const uint64_t numberOfTuples)
     this->numberOfTuples = numberOfTuples;
 }
 
+uint64_t BufferControlBlock::getMemSize() const noexcept
+{
+    return memSize;
+}
+
+void BufferControlBlock::setMemSize(const uint64_t memSize)
+{
+    this->memSize = memSize;
+}
+
 Timestamp BufferControlBlock::getWatermark() const noexcept
 {
     return watermark;

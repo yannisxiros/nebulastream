@@ -19,10 +19,12 @@
 #include <numeric>
 #include <utility>
 #include <vector>
+
 #include <DataTypes/Schema.hpp>
 #include <Nautilus/Interface/BufferRef/ColumnTupleBufferRef.hpp>
 #include <Nautilus/Interface/BufferRef/RowTupleBufferRef.hpp>
 #include <Nautilus/Interface/BufferRef/TupleBufferRef.hpp>
+#include "Nautilus/Interface/BufferRef/InlineTupleBufferRef.hpp"
 
 namespace NES
 {
@@ -33,6 +35,24 @@ LowerSchemaProvider::lowerSchema(const uint64_t bufferSize, const Schema& schema
     /// that can change the order, alignment or even the datatype implementation, e.g., u32 instead of u8.
     switch (layoutType)
     {
+        case MemoryLayoutType::STRINGS_INLINE: {
+            std::vector<InlineTupleBufferRef::Field> fields;
+            fields.reserve(schema.getNumberOfFields());
+            uint64_t fieldOffset = 0;
+            for (const auto& field : schema)
+            {
+                fields.emplace_back(field.name, field.dataType, fieldOffset);
+                fieldOffset += field.dataType.getSizeInBytes();
+            }
+            const auto tupleSize = std::accumulate(
+                fields.begin(),
+                fields.end(),
+                0UL,
+                [](auto size, const InlineTupleBufferRef::Field& field) { return size + field.type.getSizeInBytes(); });
+            return std::make_shared<InlineTupleBufferRef>(InlineTupleBufferRef{std::move(fields), tupleSize, bufferSize});
+        }
+
+
         case MemoryLayoutType::ROW_LAYOUT: {
             std::vector<RowTupleBufferRef::Field> fields;
             fields.reserve(schema.getNumberOfFields());

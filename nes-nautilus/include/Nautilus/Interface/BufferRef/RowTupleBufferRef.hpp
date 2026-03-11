@@ -62,7 +62,7 @@ public:
         const RecordBuffer& recordBuffer,
         nautilus::val<uint64_t>& recordIndex) const override;
 
-    void writeRecord(
+    nautilus::val<uint32_t> writeRecord(
         nautilus::val<uint64_t>& recordIndex,
         const RecordBuffer& recordBuffer,
         const Record& rec,
