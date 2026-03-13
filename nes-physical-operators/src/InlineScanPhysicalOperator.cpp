@@ -13,7 +13,7 @@
 */
 
 
-#include <ScanPhysicalOperator.hpp>
+#include <InlineScanPhysicalOperator.hpp>
 
 #include <cstdint>
 #include <memory>
@@ -33,7 +33,7 @@
 namespace NES
 {
 
-ScanPhysicalOperator::ScanPhysicalOperator(
+InlineScanPhysicalOperator::InlineScanPhysicalOperator(
     std::shared_ptr<TupleBufferRef> bufferRef, std::vector<Record::RecordFieldIdentifier> projections)
     : bufferRef(std::move(bufferRef))
     , projections(std::move(projections))
@@ -41,7 +41,7 @@ ScanPhysicalOperator::ScanPhysicalOperator(
 {
 }
 
-void ScanPhysicalOperator::rawScan(ExecutionContext& executionCtx, RecordBuffer& recordBuffer) const
+void InlineScanPhysicalOperator::rawScan(ExecutionContext& executionCtx, RecordBuffer& recordBuffer) const
 {
     auto inputFormatterBufferRef = std::dynamic_pointer_cast<InputFormatterTupleBufferRef>(this->bufferRef);
 
@@ -59,7 +59,7 @@ void ScanPhysicalOperator::rawScan(ExecutionContext& executionCtx, RecordBuffer&
     inputFormatterBufferRef->readBuffer(executionCtx, recordBuffer, executeChildLambda);
 }
 
-void ScanPhysicalOperator::open(ExecutionContext& executionCtx, RecordBuffer& recordBuffer) const
+void InlineScanPhysicalOperator::open(ExecutionContext& executionCtx, RecordBuffer& recordBuffer) const
 {
     /// initialize global state variables to keep track of the watermark ts and the origin id
     executionCtx.watermarkTs = recordBuffer.getWatermarkTs();
@@ -86,12 +86,12 @@ void ScanPhysicalOperator::open(ExecutionContext& executionCtx, RecordBuffer& re
     }
 }
 
-std::optional<PhysicalOperator> ScanPhysicalOperator::getChild() const
+std::optional<PhysicalOperator> InlineScanPhysicalOperator::getChild() const
 {
     return child;
 }
 
-void ScanPhysicalOperator::setChild(PhysicalOperator child)
+void InlineScanPhysicalOperator::setChild(PhysicalOperator child)
 {
     this->child = std::move(child);
 }

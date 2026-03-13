@@ -103,7 +103,7 @@ void parseRawValueIntoRecord(
             record.write(fieldName, parseIntoNautilusRecord<bool>(fieldAddress, fieldSize));
             return;
         }
-        case DataType::Type::MINE:
+        case DataType::Type::FLINK:
         case DataType::Type::VARSIZED: {
             switch (quotationType)
             {

@@ -41,10 +41,11 @@ namespace NES
 class EmitState : public OperatorState
 {
 public:
-    explicit EmitState(const RecordBuffer& resultBuffer) : resultBuffer(resultBuffer)
-    {}
-    nautilus::val<uint64_t> numRecords = 0;
+    explicit EmitState(const RecordBuffer& resultBuffer) : resultBuffer(resultBuffer), bufferMemoryArea(resultBuffer.getMemArea()) { }
+
+    nautilus::val<uint64_t> outputIndex = 0;
     RecordBuffer resultBuffer;
+    nautilus::val<int8_t*> bufferMemoryArea;
 };
 
 void EmitPhysicalOperator::open(ExecutionContext& ctx, RecordBuffer&) const
@@ -60,25 +61,27 @@ void EmitPhysicalOperator::execute(ExecutionContext& ctx, Record& record) const
 {
     auto* const emitState = dynamic_cast<EmitState*>(ctx.getLocalState(id));
     /// emit buffer if it reached the maximal capacity
-    if (emitState->resultBuffer.getMemSize() + bufferRef->getTupleSize() >= bufferRef->getBufferSize())
+    if (emitState->outputIndex >= getMaxRecordsPerBuffer())
     {
-        emitRecordBuffer(ctx, emitState->resultBuffer, emitState->numRecords, false);
+        emitRecordBuffer(ctx, emitState->resultBuffer, emitState->outputIndex, false);
         const auto resultBufferRef = ctx.allocateBuffer();
         emitState->resultBuffer = RecordBuffer(resultBufferRef);
+        emitState->bufferMemoryArea = emitState->resultBuffer.getMemArea();
+        emitState->outputIndex = 0_u64;
     }
 
     /// We need to first check if the buffer has to be emitted and then write to it. Otherwise, it can happen that we will
     /// emit a tuple twice. Once in the execute() and then again in close(). This happens only for buffers that are filled
     /// to the brim, i.e., have no more space left.
-    bufferRef->writeRecord(emitState->numRecords, emitState->resultBuffer, record, ctx.pipelineMemoryProvider.bufferProvider);
-    emitState->numRecords = emitState->numRecords + 1;
+    bufferRef->writeRecord(emitState->outputIndex, emitState->resultBuffer, record, ctx.pipelineMemoryProvider.bufferProvider);
+    emitState->outputIndex = emitState->outputIndex + 1;
 }
 
 void EmitPhysicalOperator::close(ExecutionContext& ctx, RecordBuffer&) const
 {
     /// emit current buffer and set the metadata
     auto* const emitState = dynamic_cast<EmitState*>(ctx.getLocalState(id));
-    emitRecordBuffer(ctx, emitState->resultBuffer, emitState->numRecords, true);
+    emitRecordBuffer(ctx, emitState->resultBuffer, emitState->outputIndex, true);
 }
 
 namespace

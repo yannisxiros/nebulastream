@@ -131,7 +131,7 @@ VarVal VarVal::castToType(const DataType::Type type) const
         case DataType::Type::FLOAT64: {
             return {cast<nautilus::val<double>>()};
         }
-        case DataType::Type::MINE:
+        case DataType::Type::FLINK:
         case DataType::Type::VARSIZED: {
             return cast<VariableSizedData>();
         }
@@ -183,7 +183,7 @@ VarVal VarVal::readVarValFromMemory(const nautilus::val<int8_t*>& memRef, const 
             return {readValueFromMemRef<double>(memRef)};
         }
         case DataType::Type::VARSIZED:
-        case DataType::Type::MINE:
+        case DataType::Type::FLINK:
         case DataType::Type::UNDEFINED:
             throw UnknownDataType("Not supporting reading {} data type from memory.", magic_enum::enum_name(type));
     }

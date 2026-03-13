@@ -147,7 +147,7 @@ void SIMDJSONFIF::writeValueToRecord(
             record.write(fieldName, parseNonStringValueIntoNautilusRecord<bool>(fieldIdx, fieldIndexFunction, metaData));
             return;
         }
-        case DataType::Type::MINE:
+        case DataType::Type::FLINK:
         case DataType::Type::VARSIZED: {
             record.write(fieldName, parseStringIntoNautilusRecord(fieldIdx, fieldIndexFunction, metaData));
             return;

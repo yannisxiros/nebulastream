@@ -12,7 +12,7 @@
     limitations under the License.
 */
 
-#include <EmitPhysicalOperator.hpp>
+#include <InlineEmitPhysicalOperator.hpp>
 
 #include <cstddef>
 #include <cstdint>
@@ -38,27 +38,27 @@
 namespace NES
 {
 
-class EmitState : public OperatorState
+class InlineEmitState : public OperatorState
 {
 public:
-    explicit EmitState(const RecordBuffer& resultBuffer) : resultBuffer(resultBuffer)
+    explicit InlineEmitState(const RecordBuffer& resultBuffer) : resultBuffer(resultBuffer)
     {}
     nautilus::val<uint64_t> numRecords = 0;
     RecordBuffer resultBuffer;
 };
 
-void EmitPhysicalOperator::open(ExecutionContext& ctx, RecordBuffer&) const
+void InlineEmitPhysicalOperator::open(ExecutionContext& ctx, RecordBuffer&) const
 {
     /// initialize state variable and create new buffer
     const auto resultBufferRef = ctx.allocateBuffer();
     const auto resultBuffer = RecordBuffer(resultBufferRef);
-    auto emitState = std::make_unique<EmitState>(resultBuffer);
+    auto emitState = std::make_unique<InlineEmitState>(resultBuffer);
     ctx.setLocalOperatorState(id, std::move(emitState));
 }
 
-void EmitPhysicalOperator::execute(ExecutionContext& ctx, Record& record) const
+void InlineEmitPhysicalOperator::execute(ExecutionContext& ctx, Record& record) const
 {
-    auto* const emitState = dynamic_cast<EmitState*>(ctx.getLocalState(id));
+    auto* const emitState = dynamic_cast<InlineEmitState*>(ctx.getLocalState(id));
     /// emit buffer if it reached the maximal capacity
     if (emitState->resultBuffer.getMemSize() + bufferRef->getTupleSize() >= bufferRef->getBufferSize())
     {
@@ -74,10 +74,10 @@ void EmitPhysicalOperator::execute(ExecutionContext& ctx, Record& record) const
     emitState->numRecords = emitState->numRecords + 1;
 }
 
-void EmitPhysicalOperator::close(ExecutionContext& ctx, RecordBuffer&) const
+void InlineEmitPhysicalOperator::close(ExecutionContext& ctx, RecordBuffer&) const
 {
     /// emit current buffer and set the metadata
-    auto* const emitState = dynamic_cast<EmitState*>(ctx.getLocalState(id));
+    auto* const emitState = dynamic_cast<InlineEmitState*>(ctx.getLocalState(id));
     emitRecordBuffer(ctx, emitState->resultBuffer, emitState->numRecords, true);
 }
 
@@ -113,7 +113,7 @@ void setChunkNumber(
 }
 }
 
-void EmitPhysicalOperator::emitRecordBuffer(
+void InlineEmitPhysicalOperator::emitRecordBuffer(
     ExecutionContext& ctx,
     RecordBuffer& recordBuffer,
     const nautilus::val<uint64_t>& numRecords,
@@ -130,22 +130,22 @@ void EmitPhysicalOperator::emitRecordBuffer(
     ctx.emitBuffer(recordBuffer);
 }
 
-EmitPhysicalOperator::EmitPhysicalOperator(OperatorHandlerId operatorHandlerId, std::shared_ptr<TupleBufferRef> memoryProvider)
+InlineEmitPhysicalOperator::InlineEmitPhysicalOperator(OperatorHandlerId operatorHandlerId, std::shared_ptr<TupleBufferRef> memoryProvider)
     : bufferRef(std::move(memoryProvider)), operatorHandlerId(operatorHandlerId)
 {
 }
 
-[[nodiscard]] uint64_t EmitPhysicalOperator::getMaxRecordsPerBuffer() const
+[[nodiscard]] uint64_t InlineEmitPhysicalOperator::getMaxRecordsPerBuffer() const
 {
     return bufferRef->getCapacity();
 }
 
-std::optional<PhysicalOperator> EmitPhysicalOperator::getChild() const
+std::optional<PhysicalOperator> InlineEmitPhysicalOperator::getChild() const
 {
     return child;
 }
 
-void EmitPhysicalOperator::setChild(PhysicalOperator child)
+void InlineEmitPhysicalOperator::setChild(PhysicalOperator child)
 {
     this->child = std::move(child);
 }

@@ -71,7 +71,7 @@ Record InlineTupleBufferRef::readRecord(
             continue;
         }
         auto fieldAddress = calculateFieldAddress(recordAddress, fieldOffset);
-        if (type.type != DataType::Type::VARSIZED)
+        if (type.type != DataType::Type::FLINK)
         {
             record.write(name, VarVal::readVarValFromMemory(fieldAddress, type.type));
             continue;
@@ -197,7 +197,7 @@ void InlineTupleBufferRef::writeRecord(
         const auto& value = rec.read(name);
 
 
-        if (type.type != DataType::Type::VARSIZED)
+        if (type.type != DataType::Type::FLINK)
         {
             /// We might have to cast the value to the correct type, e.g. VarVal could be a INT8 but the type we have to write is of type INT16
             /// We get the correct function to call via a unordered_map

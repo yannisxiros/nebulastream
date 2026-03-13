@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <memory>
 #include <utility>
+
 #include <DataTypes/DataType.hpp>
 #include <Nautilus/DataTypes/VarVal.hpp>
 #include <Util/Logger/LogLevel.hpp>
@@ -25,6 +26,7 @@
 #include <nautilus/val_enum.hpp>
 #include <ErrorHandling.hpp>
 #include <val.hpp>
+#include "DataTypes/Schema.hpp"
 
 namespace NES
 {
@@ -108,7 +110,7 @@ static VarVal createNautilusConstValue(T value, DataType::Type physicalType)
         case DataType::Type::BOOLEAN:
         case DataType::Type::CHAR:
         case DataType::Type::VARSIZED:
-        case DataType::Type::MINE:
+        case DataType::Type::FLINK:
         case DataType::Type::UNDEFINED:
             throw UnknownDataType("Not supporting reading {} data type from memory.", magic_enum::enum_name(physicalType));
     }

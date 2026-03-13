@@ -72,7 +72,7 @@ std::string CSVFormat::tupleBufferToFormattedCSVString(TupleBuffer tbuffer, cons
                   [&formattingContext, &tuple, &tbuffer, copyOfEscapeStrings = escapeStrings, &i](const auto& index)
                   {
                       const auto physicalType = formattingContext.physicalTypes[index];
-                      if (physicalType.type == DataType::Type::VARSIZED)
+                      if (physicalType.type == DataType::Type::FLINK || physicalType.type == DataType::Type::VARSIZED)
                       {
                           const auto base = formattingContext.offsets[index];
                           uint64_t index{};

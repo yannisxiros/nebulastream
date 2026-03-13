@@ -36,11 +36,15 @@
 #include <MapPhysicalOperator.hpp>
 #include <PhysicalOperator.hpp>
 #include <ScanPhysicalOperator.hpp>
+#include "Nautilus/Util.hpp"
 
-namespace
+#include "InlineScanPhysicalOperator.hpp"
+#include "Util.hpp"
+
+namespace NES
 {
-NES::ScanPhysicalOperator
-createScanOperator(const NES::LogicalOperator& projectionOp, const size_t bufferSize, const NES::Schema& inputSchema)
+std::shared_ptr<PhysicalOperatorWrapper> createScanOperator(
+    const NES::LogicalOperator& projectionOp, const size_t bufferSize, const NES::Schema& inputSchema, const NES::Schema& outputSchema)
 {
     const auto sourceOperators
         = projectionOp.getChildren()
@@ -54,26 +58,55 @@ createScanOperator(const NES::LogicalOperator& projectionOp, const size_t buffer
 
     const auto memoryLayoutTypeTrait = projectionOp.getTraitSet().tryGet<NES::MemoryLayoutTypeTrait>();
     PRECONDITION(memoryLayoutTypeTrait.has_value(), "Expected a memory layout type trait");
-    // const auto memoryLayoutType = memoryLayoutTypeTrait.value()->memoryLayout;
+    const auto memoryLayoutType = memoryLayoutTypeTrait.value()->memoryLayout;
 
-    const auto memoryLayoutType = NES::MemoryLayoutType::STRINGS_INLINE;
-    const auto memoryProvider = NES::LowerSchemaProvider::lowerSchema(bufferSize, inputSchema, memoryLayoutType);
     if (sourceOperators.size() == 1)
     {
         const auto inputFormatterConfig = sourceOperators.front().getParserConfig();
         if (NES::toUpperCase(inputFormatterConfig.parserType) != "NATIVE")
         {
-            return NES::ScanPhysicalOperator(
+            const auto memoryProvider = NES::LowerSchemaProvider::lowerSchema(bufferSize, inputSchema, memoryLayoutType);
+            auto scan = NES::ScanPhysicalOperator(
                 provideInputFormatterTupleBufferRef(inputFormatterConfig, memoryProvider), inputSchema.getFieldNames());
+
+            return std::make_shared<PhysicalOperatorWrapper>(
+                scan,
+                outputSchema,
+                outputSchema,
+                memoryLayoutType,
+                memoryLayoutType,
+                std::nullopt,
+                std::nullopt,
+                PhysicalOperatorWrapper::PipelineLocation::SCAN);
         }
     }
-    return NES::ScanPhysicalOperator(memoryProvider, inputSchema.getFieldNames());
-}
 
+    if (containsFlinkType(inputSchema))
+    {
+        auto memoryProvider = NES::LowerSchemaProvider::lowerSchema(bufferSize, inputSchema, MemoryLayoutType::STRINGS_INLINE);
+        auto scan = NES::InlineScanPhysicalOperator(memoryProvider, inputSchema.getFieldNames());
+        return std::make_shared<PhysicalOperatorWrapper>(
+            scan,
+            outputSchema,
+            outputSchema,
+            memoryLayoutType,
+            memoryLayoutType,
+            std::nullopt,
+            std::nullopt,
+            PhysicalOperatorWrapper::PipelineLocation::SCAN);
+    }
+    auto memoryProvider = NES::LowerSchemaProvider::lowerSchema(bufferSize, inputSchema, memoryLayoutType);
+    auto scan = NES::ScanPhysicalOperator(memoryProvider, inputSchema.getFieldNames());
+    return std::make_shared<PhysicalOperatorWrapper>(
+        scan,
+        outputSchema,
+        outputSchema,
+        memoryLayoutType,
+        memoryLayoutType,
+        std::nullopt,
+        std::nullopt,
+        PhysicalOperatorWrapper::PipelineLocation::SCAN);
 }
-
-namespace NES
-{
 
 LoweringRuleResultSubgraph LowerToPhysicalProjection::apply(LogicalOperator projectionLogicalOperator)
 {
@@ -84,18 +117,10 @@ LoweringRuleResultSubgraph LowerToPhysicalProjection::apply(LogicalOperator proj
 
     const auto memoryLayoutTypeTrait = projectionLogicalOperator.getTraitSet().tryGet<MemoryLayoutTypeTrait>();
     PRECONDITION(memoryLayoutTypeTrait.has_value(), "Expected a memory layout type trait");
-    // const auto memoryLayoutType = memoryLayoutTypeTrait.value()->memoryLayout;
-    const auto memoryLayoutType = MemoryLayoutType::STRINGS_INLINE;
-    auto scan = createScanOperator(projectionLogicalOperator, bufferSize, inputSchema);
-    auto scanWrapper = std::make_shared<PhysicalOperatorWrapper>(
-        scan,
-        outputSchema,
-        outputSchema,
-        memoryLayoutType,
-        memoryLayoutType,
-        std::nullopt,
-        std::nullopt,
-        PhysicalOperatorWrapper::PipelineLocation::SCAN);
+    const auto memoryLayoutType = memoryLayoutTypeTrait.value()->memoryLayout;
+
+    std::shared_ptr<PhysicalOperatorWrapper> scanWrapper
+        = createScanOperator(projectionLogicalOperator, bufferSize, inputSchema, outputSchema);
 
     auto child = scanWrapper;
 

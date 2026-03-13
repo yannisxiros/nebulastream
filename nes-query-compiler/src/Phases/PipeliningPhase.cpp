@@ -41,6 +41,8 @@
 #include <ScanPhysicalOperator.hpp>
 #include <SinkPhysicalOperator.hpp>
 
+#include "InlineEmitPhysicalOperator.hpp"
+
 namespace NES::QueryCompilation::PipeliningPhase
 {
 
@@ -108,15 +110,32 @@ void addDefaultEmit(const std::shared_ptr<Pipeline>& pipeline, const PhysicalOpe
 {
     PRECONDITION(pipeline->isOperatorPipeline(), "Only add emit physical operator to operator pipelines");
     const auto& schema = wrappedOp.getOutputSchema();
-    const auto memoryLayoutType = wrappedOp.getOutputMemoryLayoutType();
-    INVARIANT(schema.has_value(), "Wrapped operator has no output schema");
-    INVARIANT(memoryLayoutType.has_value(), "Wrapped operator has no output memory layout type");
 
-    const auto bufferRef = LowerSchemaProvider::lowerSchema(configuredBufferSize, schema.value(), MemoryLayoutType::STRINGS_INLINE);
-    /// Create an operator handler for the emit
-    const OperatorHandlerId operatorHandlerIndex = getNextOperatorHandlerId();
-    pipeline->getOperatorHandlers().emplace(operatorHandlerIndex, std::make_shared<EmitOperatorHandler>());
-    pipeline->appendOperator(EmitPhysicalOperator(operatorHandlerIndex, bufferRef));
+    const auto containsFlink = std::ranges::any_of(schema.value(), [&](const auto& fields)
+        {
+            return fields.dataType == DataType{DataType::Type::FLINK};
+        });
+    if (containsFlink)
+    {
+        INVARIANT(schema.has_value(), "Wrapped operator has no output schema");
+        const auto bufferRef = LowerSchemaProvider::lowerSchema(configuredBufferSize, schema.value(), MemoryLayoutType::STRINGS_INLINE);
+        /// Create an operator handler for the emit
+        const OperatorHandlerId operatorHandlerIndex = getNextOperatorHandlerId();
+        pipeline->getOperatorHandlers().emplace(operatorHandlerIndex, std::make_shared<EmitOperatorHandler>());
+        pipeline->appendOperator(InlineEmitPhysicalOperator(operatorHandlerIndex, bufferRef));
+    }
+    else
+    {
+        const auto memoryLayoutType = wrappedOp.getOutputMemoryLayoutType();
+        INVARIANT(schema.has_value(), "Wrapped operator has no output schema");
+        INVARIANT(memoryLayoutType.has_value(), "Wrapped operator has no output memory layout type");
+        const auto bufferRef = LowerSchemaProvider::lowerSchema(configuredBufferSize, schema.value(), memoryLayoutType.value());
+        /// Create an operator handler for the emit
+        const OperatorHandlerId operatorHandlerIndex = getNextOperatorHandlerId();
+        pipeline->getOperatorHandlers().emplace(operatorHandlerIndex, std::make_shared<EmitOperatorHandler>());
+        pipeline->appendOperator(EmitPhysicalOperator(operatorHandlerIndex, bufferRef));
+    }
+
 }
 
 enum class PipelinePolicy : uint8_t

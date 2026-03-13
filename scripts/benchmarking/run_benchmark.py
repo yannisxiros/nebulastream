@@ -1,0 +1,283 @@
+#!/usr/bin/env python3
+
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+
+#    https://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""
+Python script that runs the below systest files for different worker configurations
+"""
+
+import argparse
+import ast
+import subprocess
+import json
+import os
+import csv
+import shutil
+import itertools
+import socket
+import re
+
+from utils import *
+
+
+#### Benchmark Configurations
+build_dir = os.path.join(".", "build-docker")
+working_dir = os.path.join(build_dir, "working_dir")
+csv_file_path = "results_nebulastream.csv"
+benchmark_json_file = os.path.abspath(os.path.join(working_dir, "BenchmarkResults.json"))
+systest_executable = os.path.join(build_dir, "nes-systests/systest/systest")
+test_data_dir = "nes-systests/testdata"
+cmake_flags = ("-G Ninja "
+               "-DCMAKE_BUILD_TYPE=Release "
+               f"-DCMAKE_TOOLCHAIN_FILE={get_vcpkg_dir()} "
+               "-DUSE_LIBCXX_IF_AVAILABLE:BOOL=OFF "
+               "-DENABLE_LARGE_TESTS=1 "
+               "-DNES_LOG_LEVEL:STRING=LEVEL_NONE "
+               "-DNES_BUILD_NATIVE:BOOL=ON")
+NUM_RUNS_PER_EXPERIMENT = 1
+
+#### Worker Configurations
+allExecutionModes = ["COMPILER"]  # ["COMPILER", "INTERPRETER"]
+allNumberOfWorkerThreads = ['4', '16']  #['1', '4', '8', '16', '24'] #['4', '16']
+allJoinStrategies = ["HASH_JOIN"]
+# Renamed from allSliceCacheTypes -> allStringTypes
+allStringTypes = ["VARSIZED", "GERMAN", "FLINK"]
+allPageSizes = [8192]
+#[4000000] if buffer size is 8192 #[500000] if buffer size is 102400
+allBufferConfigs = [(1048576, 20000)]
+
+#### Queries
+queries = {
+    "AOL2": "nes-systests/benchmark/AOL.test:02",
+    # "YSB": "nes-systests/benchmark/YahooStreamingBenchmark.test:02", 
+    # "YSB10k": "nes-systests/benchmark/YahooStreamingBenchmark_more_data.test:02",
+    # "NM1": "nes-systests/benchmark/Nexmark_multiple_GB_of_Bids.test:02",
+    # "NM2": "nes-systests/benchmark/Nexmark_multiple_GB_of_Bids.test:03",
+    # "NM5": "nes-systests/benchmark/Nexmark_multiple_GB_of_Bids.test:04",
+    # "NM8": "nes-systests/benchmark/Nexmark_multiple_GB_of_Bids.test:05",
+    # "NM8_Variant": "nes-systests/benchmark/Nexmark_multiple_GB_of_Bids.test:06",
+}
+
+def check_generate_systest(allStringTypes, queries, queries_dir):
+    # Ensure "strings" directory exists
+    strings_dir = os.path.join(queries_dir, "strings")
+    if not os.path.exists(strings_dir):
+        os.makedirs(strings_dir)
+
+    # Iterate over each query with :0x at the end
+    for _, query_path in queries.items():
+        base_path = query_path.split(":", 1)[0]
+        print(base_path)
+        base_filename = os.path.basename(base_path )
+        match = re.match(r"([^\.]+)", base_filename)
+        name_part = match.group(1) if match else base_filename
+        query_dir = os.path.join(strings_dir, name_part)
+        if not os.path.exists(query_dir):
+            os.makedirs(query_dir)
+        
+
+
+        # For each string type, ensure query_{string}.test exists
+        for string_type in allStringTypes:
+            test_file_name = f"{name_part}_{string_type}.test"
+            # Open the original file, replace VARSIZED with string_type, and write to test_file_path
+            test_file_path = os.path.join(query_dir, test_file_name)
+            if not os.path.exists(test_file_path):
+                with open(base_path, 'r') as src_file:
+                    content = src_file.read().replace("VARSIZED", string_type)
+                with open(test_file_path, 'w') as dst_file:
+                    dst_file.write(content)
+                print(f"Created {test_file_path}")
+            else:
+                print(f"Exists {test_file_path}")
+
+def initialize_csv_file():
+    """Initialize the CSV file with headers."""
+    print("Initializing CSV file...")
+    with open(csv_file_path, mode='w', newline='') as csv_file:
+        fieldnames = [
+            'bytesPerSecond', 'query name', 'time', 'tuplesPerSecond',
+            'executionMode', 'numberOfWorkerThreads', 'buffersInGlobalBufferManager',
+            'joinStrategy', 'stringType',
+            'bufferSizeInBytes', 'pageSize'
+        ]
+        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+        writer.writeheader()
+        print("CSV file initialized with headers.")
+
+def run_benchmark(config, query, queryIdx, workerConfigIdx, no_combinations, no_queries):
+    # Create the working directory
+    create_folder_and_remove_if_exists(working_dir)
+
+    try:
+        # Running the query with a particular worker configuration
+        worker_config = (f"--worker.query_engine.number_of_worker_threads={numberOfWorkerThreads} "
+                 f"--worker.default_query_execution.execution_mode={executionMode} "
+                 f"--worker.number_of_buffers_in_global_buffer_manager={buffersInGlobalBufferManager} "
+                 f"--worker.buffer_size_in_bytes={bufferSizeInBytes} "
+                 f"--worker.default_query_execution.page_size={pageSize} "
+                 f"--worker.default_query_execution.operator_buffer_size={bufferSizeInBytes} ")
+
+        benchmark_command = f"{systest_executable} -b -t {os.path.abspath(queries[query])} --data {test_data_dir} --workingDir={working_dir}"# -- {worker_config}"
+
+        print(
+            f"Running {query} [{queryIdx}/{no_queries}] for worker configuration [{workerConfigIdx}/{no_combinations}]...")
+        stdout = run_command(benchmark_command)
+
+        # Parse and save benchmark results
+        with open(benchmark_json_file, 'r') as file:
+            content = file.read()
+            benchmark_results = json.loads(content)
+    except json.JSONDecodeError as e:
+        print(f"Failed to parse benchmark output as JSON from {benchmark_json_file}")
+        print(f"Error details: {e}")
+        benchmark_results = []
+        exit(1)
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+        benchmark_results = []
+        exit(1)
+
+    with open(csv_file_path, mode='a', newline='') as csv_file:
+        writer = csv.DictWriter(csv_file, fieldnames=[
+            'bytesPerSecond', 'query name', 'time', 'tuplesPerSecond',
+            'executionMode', 'numberOfWorkerThreads', 'buffersInGlobalBufferManager',
+            'joinStrategy', 'stringType',
+            'bufferSizeInBytes', 'pageSize'
+        ])
+        
+        for result in benchmark_results:
+            result['query name'] = query
+            writer.writerow({**result, **config})
+        print(f"Results for config {config} written to CSV.")
+
+def parse_buffer_config(config_strings):
+    """Parse a list of buffer config strings into a list of tuples."""
+    result = []
+    for s in config_strings:
+        try:
+            parsed = ast.literal_eval(s.strip())
+            if isinstance(parsed, tuple) and len(parsed) == 2:
+                result.append(parsed)
+            else:
+                raise ValueError(f"Expected a tuple of 2 elements, got {parsed}")
+        except (ValueError, SyntaxError) as e:
+            raise ValueError(f"Invalid tuple format: {s}. Expected format like '(1234, 100)'") from e
+    return result
+
+if __name__ == "__main__":
+    # Initialize argument parser
+    parser = argparse.ArgumentParser(description="Run NebulaStream queries.")
+    parser.add_argument("--all", action="store_true", help="Run all queries.")
+    parser.add_argument("-q", "--queries", nargs="+", help="List of queries to run.")
+    parser.add_argument("-w", "--worker-threads", nargs="+", help="Number of worker threads to run the queries.")
+    parser.add_argument("-b", "--buffer-config", nargs="+", help="List of buffer configurations as tuples and buffer size is first, e.g., '(1234, 100) (128, 40)'.")
+    parser.add_argument("-s", "--string-type", nargs="+", help="List of string types to run the queries.")
+    args = parser.parse_args()
+
+    # Determine which queries to runW
+    queries_to_run = queries
+
+    if not args.all and args.queries:
+        # Filter queries based on the provided list
+        queries_to_run = {k: v for k, v in queries.items() if k in args.queries}
+
+    # Determine which string types to run (was slice caches)
+    string_types_to_run = allStringTypes
+    if args.string_type:
+        string_types_to_run = [s for s in allStringTypes if s in args.string_type]
+
+    # Determine the number of worker threads to run with
+    number_of_worker_threads_to_run = allNumberOfWorkerThreads
+    if args.worker_threads:
+        number_of_worker_threads_to_run = [str(no_worker_threads) for no_worker_threads in args.worker_threads]
+
+    # Parse buffer configurations
+    if args.buffer_config:
+        allBufferConfigs = parse_buffer_config(args.buffer_config)
+
+    check_generate_systest(string_types_to_run, queries_to_run, "nes-systests/benchmark")
+    exit(0)
+
+    # Print results
+    print(",".join(queries_to_run.keys()))
+    print(",".join(string_types_to_run))
+    print(",".join(number_of_worker_threads_to_run))
+    print(",".join(map(str, allBufferConfigs)))
+
+    # Checking if the script has been executed from the repository root
+    check_repository_root()
+
+    # Create folder
+    # create_folder_and_remove_if_exists(build_dir)
+
+    # Build NebulaStream
+    # compile_nebulastream(cmake_flags, build_dir)
+
+    # Init csv files
+    initialize_csv_file()
+
+    # Iterate over all cross-product combinations for each query
+    no_combinations = (
+            len(allExecutionModes) *
+            len(number_of_worker_threads_to_run) *
+            len(allJoinStrategies) *
+            len(string_types_to_run) *
+            len(allPageSizes) *
+            len(allBufferConfigs)
+    )
+    no_queries = len(queries_to_run)
+    for queryIdx, query in enumerate(queries_to_run):
+        workerConfigIdx = 0
+
+        combinations = itertools.product(allExecutionModes, number_of_worker_threads_to_run,
+                                         allBufferConfigs, allJoinStrategies,
+                                         string_types_to_run,
+                                         allPageSizes)
+        for [executionMode, numberOfWorkerThreads, (bufferSizeInBytes, buffersInGlobalBufferManager), joinStrategy,
+             stringType, pageSize] in combinations:
+            workerConfigIdx += 1
+
+            # Otherwise we run out-of-memory / out-of-buffers
+            # if not args.buffer_config:
+            #     if query == "NM8":
+            #         buffersInGlobalBufferManager = 312000
+            #         bufferSizeInBytes = 400 * 1024
+
+            #     if query == "NM8" and  socket.gethostname() == "mif-ws":
+            #         buffersInGlobalBufferManager = 250000
+            #         bufferSizeInBytes = 250 * 1024
+
+            #     # For PI 4B with 8 GB of RAM
+            #     if socket.gethostname() == "docker-hostname":
+            #         buffersInGlobalBufferManager = 40000
+            #         bufferSizeInBytes = 102400
+
+
+            config = {
+                'executionMode': executionMode,
+                'numberOfWorkerThreads': numberOfWorkerThreads,
+                'buffersInGlobalBufferManager': buffersInGlobalBufferManager,
+                'joinStrategy': joinStrategy,
+                'bufferSizeInBytes': bufferSizeInBytes,
+                'pageSize': pageSize,
+                'stringType': stringType
+            }
+
+            print(config)
+
+            for i in range(NUM_RUNS_PER_EXPERIMENT):
+                run_benchmark(config, query, queryIdx + 1, workerConfigIdx, no_combinations, no_queries)
+
+    abs_csv_path = os.path.abspath(csv_file_path)
+    print(f"CSV Measurement file can be found in {abs_csv_path}")

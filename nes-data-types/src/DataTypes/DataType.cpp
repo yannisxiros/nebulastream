@@ -136,7 +136,7 @@ uint32_t DataType::getSizeInBytes() const
         case Type::FLOAT32:
             return 4;
         case Type::VARSIZED:
-        case Type::MINE:
+        case Type::FLINK:
             /// Returning '16' for VARSIZED, because we store 'uint64_t' 8-byte data that represent how to access the data, c.f., @class VariableSizedAccess
             /// and 8 bytes for the size of the VARSIZED
             return 16;
@@ -186,7 +186,7 @@ std::string DataType::formattedBytesToString(const void* data) const
             }
             return std::string{*static_cast<const char*>(data)};
         }
-        case Type::MINE:
+        case Type::FLINK:
         case Type::VARSIZED: {
             const auto* textPointer = static_cast<const char*>(data);
             return textPointer;
@@ -272,9 +272,9 @@ DataTypeRegistryReturnType DataTypeGeneratedRegistrar::RegisterVARSIZEDDataType(
     return DataType{.type = DataType::Type::VARSIZED};
 }
 
-DataTypeRegistryReturnType DataTypeGeneratedRegistrar::RegisterMINEDataType(DataTypeRegistryArguments)
+DataTypeRegistryReturnType DataTypeGeneratedRegistrar::RegisterFLINKDataType(DataTypeRegistryArguments)
 {
-    return DataType{.type = DataType::Type::MINE};
+    return DataType{.type = DataType::Type::FLINK};
 }
 
 bool DataType::isInteger() const

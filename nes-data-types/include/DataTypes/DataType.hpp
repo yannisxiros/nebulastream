@@ -45,7 +45,7 @@ struct DataType final
         CHAR,
         UNDEFINED,
         VARSIZED,
-        MINE
+        FLINK
     };
 
     template <class T>

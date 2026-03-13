@@ -17,6 +17,8 @@ add_source_files(nes-physical-operators
         UnionPhysicalOperator.cpp
         UnionRenamePhysicalOperator.cpp
         PhysicalOperator.cpp
+        InlineEmitPhysicalOperator.cpp
+        InlineScanPhysicalOperator.cpp
         EmitPhysicalOperator.cpp
         EmitOperatorHandler.cpp
         ScanPhysicalOperator.cpp
