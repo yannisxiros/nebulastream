@@ -210,6 +210,7 @@ bool compareStringAsTypeWithError(const NES::DataType::Type type, const Expected
         case NES::DataType::Type::BOOLEAN:
         case NES::DataType::Type::CHAR:
         case NES::DataType::Type::VARSIZED:
+        case NES::DataType::Type::MINE:
             return left.getRawValue() == right.getRawValue();
         case NES::DataType::Type::FLOAT32:
             return NES::Systest::compareStringAsTypeWithError<float>(left.getRawValue(), right.getRawValue());
@@ -253,6 +254,10 @@ NES::Schema parseFieldNames(const std::string_view fieldNamesRawLine)
         else if (NES::toLowerCase(typeTrimmed) == "varsized")
         {
             dataType = NES::DataTypeProvider::provideDataType(NES::DataType::Type::VARSIZED);
+        }
+        else if (NES::toLowerCase(typeTrimmed) == "mine")
+        {
+            dataType = NES::DataTypeProvider::provideDataType(NES::DataType::Type::MINE);
         }
         else
         {

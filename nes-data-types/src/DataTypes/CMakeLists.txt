@@ -32,6 +32,6 @@ add_plugin(UINT32 DataType nes-data-types DataType.cpp)
 add_plugin(UINT64 DataType nes-data-types DataType.cpp)
 add_plugin(UNDEFINED DataType nes-data-types DataType.cpp)
 add_plugin(VARSIZED DataType nes-data-types DataType.cpp)
-add_plugin(Mine DataType nes-data-types DataType.cpp)
+add_plugin(MINE DataType nes-data-types DataType.cpp)
 
 

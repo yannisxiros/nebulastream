@@ -86,7 +86,6 @@ LoweringRuleResultSubgraph LowerToPhysicalProjection::apply(LogicalOperator proj
     PRECONDITION(memoryLayoutTypeTrait.has_value(), "Expected a memory layout type trait");
     // const auto memoryLayoutType = memoryLayoutTypeTrait.value()->memoryLayout;
     const auto memoryLayoutType = MemoryLayoutType::STRINGS_INLINE;
-    /// TODO #421: we currently ignore the memory layout type of the projection operator and always use STRINGS_INLINE, as this is the only supported memory layout type for scans. Once we have refactored the memory layout and schema, we can use the memory layout type of the projection operator here.
     auto scan = createScanOperator(projectionLogicalOperator, bufferSize, inputSchema);
     auto scanWrapper = std::make_shared<PhysicalOperatorWrapper>(
         scan,

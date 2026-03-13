@@ -108,6 +108,7 @@ static VarVal createNautilusConstValue(T value, DataType::Type physicalType)
         case DataType::Type::BOOLEAN:
         case DataType::Type::CHAR:
         case DataType::Type::VARSIZED:
+        case DataType::Type::MINE:
         case DataType::Type::UNDEFINED:
             throw UnknownDataType("Not supporting reading {} data type from memory.", magic_enum::enum_name(physicalType));
     }
