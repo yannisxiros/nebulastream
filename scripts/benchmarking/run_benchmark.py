@@ -51,15 +51,21 @@ allExecutionModes = ["COMPILER"]  # ["COMPILER", "INTERPRETER"]
 allNumberOfWorkerThreads = ['4', '16']  #['1', '4', '8', '16', '24'] #['4', '16']
 allJoinStrategies = ["HASH_JOIN"]
 # Renamed from allSliceCacheTypes -> allStringTypes
-allStringTypes = ["VARSIZED", "GERMAN", "FLINK"]
+allStringTypes = ["VARSIZED", "FLINK"]
 allPageSizes = [8192]
-#[4000000] if buffer size is 8192 #[500000] if buffer size is 102400
-allBufferConfigs = [(1048576, 20000)]
+# Buffer configurations for ~12GB memory usage (on 16GB RAM system)
+# Tuple format: (bufferSizeInBytes, buffersInGlobalBufferManager)
+allBufferConfigs = [
+    (1024, 12000000), # 1KB buffers: ~11.4GB
+    (2048, 6000000),  # 2KB buffers: ~11.4GB
+    (4096, 3000000),  # 4KB buffers: ~11.4GB
+]
 
 #### Queries
 queries = {
+    "AOL1": "nes-systests/benchmark/AOL.test:01",
     "AOL2": "nes-systests/benchmark/AOL.test:02",
-    # "YSB": "nes-systests/benchmark/YahooStreamingBenchmark.test:02", 
+    "YSB": "nes-systests/benchmark/YahooStreamingBenchmark.test:02",
     # "YSB10k": "nes-systests/benchmark/YahooStreamingBenchmark_more_data.test:02",
     # "NM1": "nes-systests/benchmark/Nexmark_multiple_GB_of_Bids.test:02",
     # "NM2": "nes-systests/benchmark/Nexmark_multiple_GB_of_Bids.test:03",
@@ -92,14 +98,14 @@ def check_generate_systest(allStringTypes, queries, queries_dir):
             test_file_name = f"{name_part}_{string_type}.test"
             # Open the original file, replace VARSIZED with string_type, and write to test_file_path
             test_file_path = os.path.join(query_dir, test_file_name)
-            if not os.path.exists(test_file_path):
-                with open(base_path, 'r') as src_file:
-                    content = src_file.read().replace("VARSIZED", string_type)
-                with open(test_file_path, 'w') as dst_file:
-                    dst_file.write(content)
-                print(f"Created {test_file_path}")
-            else:
-                print(f"Exists {test_file_path}")
+            # if not os.path.exists(test_file_path):
+            with open(base_path, 'r') as src_file:
+                content = src_file.read().replace("VARSIZED", string_type)
+            with open(test_file_path, 'w') as dst_file:
+                dst_file.write(content)
+            print(f"Created {test_file_path}")
+            # else:
+            # print(f"Exists {test_file_path}")
 
 def initialize_csv_file():
     """Initialize the CSV file with headers."""
@@ -115,20 +121,30 @@ def initialize_csv_file():
         writer.writeheader()
         print("CSV file initialized with headers.")
 
-def run_benchmark(config, query, queryIdx, workerConfigIdx, no_combinations, no_queries):
+def run_benchmark(config, stringType, query, queryIdx, workerConfigIdx, no_combinations, no_queries):
     # Create the working directory
     create_folder_and_remove_if_exists(working_dir)
-
     try:
+        # Extract configurations from the config dictionary
+        numberOfWorkerThreads = config['numberOfWorkerThreads']
+        executionMode = config['executionMode']
+        buffersInGlobalBufferManager = config['buffersInGlobalBufferManager']
+        bufferSizeInBytes = config['bufferSizeInBytes']
+        pageSize = config['pageSize']
+
         # Running the query with a particular worker configuration
         worker_config = (f"--worker.query_engine.number_of_worker_threads={numberOfWorkerThreads} "
                  f"--worker.default_query_execution.execution_mode={executionMode} "
                  f"--worker.number_of_buffers_in_global_buffer_manager={buffersInGlobalBufferManager} "
-                 f"--worker.buffer_size_in_bytes={bufferSizeInBytes} "
                  f"--worker.default_query_execution.page_size={pageSize} "
                  f"--worker.default_query_execution.operator_buffer_size={bufferSizeInBytes} ")
+        
+        base_query_path, systest_num = queries[query].split(":", 1)
+        base_filename = os.path.basename(base_query_path)
+        name_part = re.match(r"([^\.]+)", base_filename).group(1)
+        this_query = f"nes-systests/benchmark/strings/{name_part}/{name_part}_{stringType}.test:{systest_num}"
 
-        benchmark_command = f"{systest_executable} -b -t {os.path.abspath(queries[query])} --data {test_data_dir} --workingDir={working_dir}"# -- {worker_config}"
+        benchmark_command = f"{systest_executable} -b -t {os.path.abspath(this_query)} --data {test_data_dir} --workingDir={working_dir} -- {worker_config}"
 
         print(
             f"Running {query} [{queryIdx}/{no_queries}] for worker configuration [{workerConfigIdx}/{no_combinations}]...")
@@ -207,7 +223,6 @@ if __name__ == "__main__":
         allBufferConfigs = parse_buffer_config(args.buffer_config)
 
     check_generate_systest(string_types_to_run, queries_to_run, "nes-systests/benchmark")
-    exit(0)
 
     # Print results
     print(",".join(queries_to_run.keys()))
@@ -277,7 +292,7 @@ if __name__ == "__main__":
             print(config)
 
             for i in range(NUM_RUNS_PER_EXPERIMENT):
-                run_benchmark(config, query, queryIdx + 1, workerConfigIdx, no_combinations, no_queries)
+                run_benchmark(config, stringType, query, queryIdx + 1, workerConfigIdx, no_combinations, no_queries)
 
     abs_csv_path = os.path.abspath(csv_file_path)
     print(f"CSV Measurement file can be found in {abs_csv_path}")

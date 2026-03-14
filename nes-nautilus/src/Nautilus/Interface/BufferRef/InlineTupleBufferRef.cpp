@@ -155,6 +155,7 @@ VariableSizedAccess writeString(
     {
         auto newChildBuffer = getNewBufferForVarSized(bufferProvider, totalVarSizedLength);
         copyVarSizedAndIncrementMetaData(newChildBuffer, VariableSizedAccess::Offset{0}, varSizedValue);
+        newChildBuffer.incMemSize(totalVarSizedLength);
         const VariableSizedAccess::Index childBufferIndex{tupleBuffer.storeChildBuffer(newChildBuffer)};
         return VariableSizedAccess{childBufferIndex, VariableSizedAccess::Size{totalVarSizedLength}};
     }
@@ -162,10 +163,11 @@ VariableSizedAccess writeString(
     const VariableSizedAccess::Index childIndex{numberOfChildBuffers - 1};
     auto lastChildBuffer = tupleBuffer.loadChildBuffer(childIndex);
     const auto usedMemorySize = lastChildBuffer.getMemSize();
-    if (usedMemorySize + totalVarSizedLength >= lastChildBuffer.getBufferSize())
+    if (usedMemorySize + totalVarSizedLength > lastChildBuffer.getBufferSize())
     {
         auto newChildBuffer = getNewBufferForVarSized(bufferProvider, totalVarSizedLength);
         copyVarSizedAndIncrementMetaData(newChildBuffer, VariableSizedAccess::Offset{0}, varSizedValue);
+        newChildBuffer.incMemSize(totalVarSizedLength);
         const VariableSizedAccess::Index childBufferIndex{tupleBuffer.storeChildBuffer(newChildBuffer)};
         return VariableSizedAccess{childBufferIndex, VariableSizedAccess::Size{totalVarSizedLength}};
     }
@@ -173,6 +175,7 @@ VariableSizedAccess writeString(
     /// There is enough space in the lastChildBuffer, thus, we copy the var sized into it
     const VariableSizedAccess::Offset childOffset{usedMemorySize};
     copyVarSizedAndIncrementMetaData(lastChildBuffer, childOffset, varSizedValue);
+    lastChildBuffer.incMemSize(totalVarSizedLength);
     return VariableSizedAccess{childIndex, childOffset, VariableSizedAccess::Size{totalVarSizedLength}};
 }
 

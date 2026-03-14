@@ -43,8 +43,8 @@ public:
 
     EnumOption<ExecutionMode> executionMode
         = {"execution_mode",
-           ExecutionMode::INTERPRETER,
-           // ExecutionMode::COMPILER,
+           // ExecutionMode::INTERPRETER,
+           ExecutionMode::COMPILER,
            "Execution mode for the query compiler"
            "[COMPILER|INTERPRETER]."};
     UIntOption numberOfPartitions

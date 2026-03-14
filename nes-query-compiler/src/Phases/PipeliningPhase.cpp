@@ -42,6 +42,7 @@
 #include <SinkPhysicalOperator.hpp>
 
 #include "InlineEmitPhysicalOperator.hpp"
+#include "Util.hpp"
 
 namespace NES::QueryCompilation::PipeliningPhase
 {
@@ -110,12 +111,7 @@ void addDefaultEmit(const std::shared_ptr<Pipeline>& pipeline, const PhysicalOpe
 {
     PRECONDITION(pipeline->isOperatorPipeline(), "Only add emit physical operator to operator pipelines");
     const auto& schema = wrappedOp.getOutputSchema();
-
-    const auto containsFlink = std::ranges::any_of(schema.value(), [&](const auto& fields)
-        {
-            return fields.dataType == DataType{DataType::Type::FLINK};
-        });
-    if (containsFlink)
+    if (containsFlinkType(schema.value()))
     {
         INVARIANT(schema.has_value(), "Wrapped operator has no output schema");
         const auto bufferRef = LowerSchemaProvider::lowerSchema(configuredBufferSize, schema.value(), MemoryLayoutType::STRINGS_INLINE);

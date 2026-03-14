@@ -60,7 +60,7 @@ void InlineEmitPhysicalOperator::execute(ExecutionContext& ctx, Record& record) 
 {
     auto* const emitState = dynamic_cast<InlineEmitState*>(ctx.getLocalState(id));
     /// emit buffer if it reached the maximal capacity
-    if (emitState->resultBuffer.getMemSize() + bufferRef->getTupleSize() >= bufferRef->getBufferSize())
+    if ((emitState->resultBuffer.getMemSize() + bufferRef->getTupleSize()) >= bufferRef->getBufferSize())
     {
         emitRecordBuffer(ctx, emitState->resultBuffer, emitState->numRecords, false);
         const auto resultBufferRef = ctx.allocateBuffer();
