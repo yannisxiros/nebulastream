@@ -79,7 +79,7 @@ VarVal ChainedEntryMemoryProvider::readVarVal(
             const auto& entryRefCopy = entryRef;
             auto castedEntryAddress = static_cast<nautilus::val<int8_t*>>(entryRefCopy);
             const auto memoryAddress = castedEntryAddress + fieldOffset;
-            if (type.isType(DataType::Type::VARSIZED) || type.isType(DataType::Type::FLINK))
+            if (type.isType(DataType::Type::FLINK) || type.isType(DataType::Type::GERMAN_VARSIZED) || type.isType(DataType::Type::VARSIZED))
             {
                 const auto varSizedDataPtr
                     = nautilus::invoke(+[](const int8_t** memoryAddressInEntry) { return *memoryAddressInEntry; }, memoryAddress);
@@ -151,7 +151,7 @@ void ChainedEntryMemoryProvider::writeRecord(
         const auto& entryRefCopy = entryRef;
         auto castedEntryAddress = static_cast<nautilus::val<int8_t*>>(entryRefCopy);
         const auto memoryAddress = castedEntryAddress + fieldOffset;
-        if (type.isType(DataType::Type::VARSIZED) || type.isType(DataType::Type::FLINK))
+        if (type.isType(DataType::Type::FLINK) || type.isType(DataType::Type::GERMAN_VARSIZED) || type.isType(DataType::Type::VARSIZED))
         {
             auto varSizedValue = value.cast<VariableSizedData>();
             storeVarSized(hashMapRef, bufferProvider, memoryAddress, varSizedValue);
@@ -173,7 +173,7 @@ void ChainedEntryMemoryProvider::writeEntryRef(
     {
         const auto value = readVarVal(otherEntryRef, fieldIdentifier);
         const auto memoryAddress = static_cast<nautilus::val<int8_t*>>(entryRef) + nautilus::val<uint64_t>(fieldOffset);
-        if (type.isType(DataType::Type::VARSIZED) || type.isType(DataType::Type::FLINK))
+        if (type.isType(DataType::Type::FLINK) || type.isType(DataType::Type::GERMAN_VARSIZED) || type.isType(DataType::Type::VARSIZED))
         {
             auto varSizedValue = value.cast<VariableSizedData>();
             storeVarSized(hashMapRef, bufferProvider, memoryAddress, varSizedValue);

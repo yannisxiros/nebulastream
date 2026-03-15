@@ -209,8 +209,9 @@ bool compareStringAsTypeWithError(const NES::DataType::Type type, const Expected
         case NES::DataType::Type::UINT64:
         case NES::DataType::Type::BOOLEAN:
         case NES::DataType::Type::CHAR:
-        case NES::DataType::Type::VARSIZED:
         case NES::DataType::Type::FLINK:
+        case NES::DataType::Type::GERMAN_VARSIZED:
+        case NES::DataType::Type::VARSIZED:
             return left.getRawValue() == right.getRawValue();
         case NES::DataType::Type::FLOAT32:
             return NES::Systest::compareStringAsTypeWithError<float>(left.getRawValue(), right.getRawValue());

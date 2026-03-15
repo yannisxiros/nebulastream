@@ -114,6 +114,12 @@ Schema createSchema(const std::vector<TestDataTypes>& testDataTypes, const std::
             case TestDataTypes::CHAR:
                 schema.addField(testFieldNames.at(fieldNumber), DataTypeProvider::provideDataType(DataType::Type::CHAR));
                 break;
+            case TestDataTypes::FLINK:
+                schema.addField(testFieldNames.at(fieldNumber), DataTypeProvider::provideDataType(DataType::Type::FLINK));
+                break;
+            case TestDataTypes::GERMAN_VARSIZED:
+                schema.addField(testFieldNames.at(fieldNumber), DataTypeProvider::provideDataType(DataType::Type::GERMAN_VARSIZED));
+                break;
             case TestDataTypes::VARSIZED:
                 schema.addField(testFieldNames.at(fieldNumber), DataTypeProvider::provideDataType(DataType::Type::VARSIZED));
                 break;

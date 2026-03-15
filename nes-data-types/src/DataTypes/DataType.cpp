@@ -135,8 +135,9 @@ uint32_t DataType::getSizeInBytes() const
         case Type::UINT32:
         case Type::FLOAT32:
             return 4;
-        case Type::VARSIZED:
         case Type::FLINK:
+        case Type::GERMAN_VARSIZED:
+        case Type::VARSIZED:
             /// Returning '16' for VARSIZED, because we store 'uint64_t' 8-byte data that represent how to access the data, c.f., @class VariableSizedAccess
             /// and 8 bytes for the size of the VARSIZED
             return 16;
@@ -187,6 +188,7 @@ std::string DataType::formattedBytesToString(const void* data) const
             return std::string{*static_cast<const char*>(data)};
         }
         case Type::FLINK:
+        case Type::GERMAN_VARSIZED:
         case Type::VARSIZED: {
             const auto* textPointer = static_cast<const char*>(data);
             return textPointer;
@@ -272,6 +274,11 @@ DataTypeRegistryReturnType DataTypeGeneratedRegistrar::RegisterVARSIZEDDataType(
     return DataType{.type = DataType::Type::VARSIZED};
 }
 
+DataTypeRegistryReturnType DataTypeGeneratedRegistrar::RegisterGERMAN_VARSIZEDDataType(DataTypeRegistryArguments)
+{
+    return DataType{.type = DataType::Type::GERMAN_VARSIZED};
+}
+
 DataTypeRegistryReturnType DataTypeGeneratedRegistrar::RegisterFLINKDataType(DataTypeRegistryArguments)
 {
     return DataType{.type = DataType::Type::FLINK};
@@ -304,9 +311,9 @@ std::optional<DataType> DataType::join(const DataType& otherDataType) const
     {
         return {DataTypeProvider::provideDataType(Type::UNDEFINED)};
     }
-    if (this->type == Type::VARSIZED)
+    if (this->type == Type::FLINK || this->type == Type::GERMAN_VARSIZED || this->type == Type::VARSIZED)
     {
-        return (otherDataType.isType(Type::VARSIZED)) ? std::optional{DataTypeProvider::provideDataType(Type::VARSIZED)} : std::nullopt;
+        return (otherDataType.isType(this->type)) ? std::optional{DataTypeProvider::provideDataType(this->type)} : std::nullopt;
     }
 
     if (this->isNumeric())

@@ -132,7 +132,7 @@ TupleBufferRef::loadAssociatedVarSizedValue(const TupleBuffer& tupleBuffer, cons
 VarVal
 TupleBufferRef::loadValue(const DataType& physicalType, const RecordBuffer& recordBuffer, const nautilus::val<int8_t*>& fieldReference)
 {
-    if (physicalType.type != DataType::Type::VARSIZED && physicalType.type != DataType::Type::FLINK)
+    if (physicalType.type != DataType::Type::FLINK && physicalType.type != DataType::Type::GERMAN_VARSIZED && physicalType.type != DataType::Type::VARSIZED)
     {
         return VarVal::readVarValFromMemory(fieldReference, physicalType.type);
     }
@@ -160,7 +160,7 @@ VarVal TupleBufferRef::storeValue(
     VarVal value,
     const nautilus::val<AbstractBufferProvider*>& bufferProvider)
 {
-    if (physicalType.type != DataType::Type::VARSIZED && physicalType.type != DataType::Type::FLINK)
+    if (physicalType.type != DataType::Type::FLINK && physicalType.type != DataType::Type::GERMAN_VARSIZED && physicalType.type != DataType::Type::VARSIZED)
     {
         /// We might have to cast the value to the correct type, e.g. VarVal could be a INT8 but the type we have to write is of type INT16
         /// We get the correct function to call via a unordered_map

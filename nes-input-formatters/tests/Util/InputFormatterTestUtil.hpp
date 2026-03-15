@@ -67,6 +67,8 @@ enum class TestDataTypes : uint8_t
     FLOAT64,
     BOOLEAN,
     CHAR,
+    FLINK,
+    GERMAN_VARSIZED,
     VARSIZED,
 };
 

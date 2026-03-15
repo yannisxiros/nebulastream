@@ -45,7 +45,8 @@ struct DataType final
         CHAR,
         UNDEFINED,
         VARSIZED,
-        FLINK
+        FLINK,
+        GERMAN_VARSIZED
     };
 
     template <class T>
