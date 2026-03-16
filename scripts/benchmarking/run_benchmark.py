@@ -32,7 +32,7 @@ from systest_utils import check_generate_systest
 
 
 #### Benchmark Configurations
-build_dir = os.path.join(".", "build-docker")
+build_dir = os.path.join(".", get_build_dir())
 working_dir = os.path.join(build_dir, "working_dir")
 csv_file_path = "results_nebulastream.csv"
 benchmark_json_file = os.path.abspath(os.path.join(working_dir, "BenchmarkResults.json"))
@@ -51,14 +51,13 @@ NUM_RUNS_PER_EXPERIMENT = 1
 allExecutionModes = ["COMPILER"]  # ["COMPILER", "INTERPRETER"]
 allNumberOfWorkerThreads = ['4', '8']  #['1', '4', '8', '16', '24'] #['4', '16']
 allJoinStrategies = ["HASH_JOIN"]
-allStringTypes = ["VARSIZED", "GERMAN_VARSIZED", "FLINK"]
+allStringTypes = ["VARSIZED", "GERMAN_VARSIZED" , "FLINK"]
 allPageSizes = [8192]
-# Buffer configurations for ~12GB memory usage (on 16GB RAM system)
-# Tuple format: (bufferSizeInBytes, buffersInGlobalBufferManager)
 allBufferConfigs = [
-    (1024, 12000000), # 1KB buffers: ~11.4GB
-    (2048, 6000000),  # 2KB buffers: ~11.4GB
-    (4096, 3000000),  # 4KB buffers: ~11.4GB
+    (4096, 12000000),   # 1KB buffers: ~11.4GB
+    (8192, 1500000),    # 8KB buffers: ~11.4GB
+    (32768, 375000),    # 32KB buffers: ~11.4GB
+    (102400, 120000),   # 100KB buffers: ~11.4GB
 ]
 
 #### Queries
@@ -66,11 +65,10 @@ queries = {
     "AOL1": "nes-systests/benchmark/AOL.test:01",
     "AOL2": "nes-systests/benchmark/AOL.test:02",
     "YSB": "nes-systests/benchmark/YahooStreamingBenchmark.test:02",
+    "NM8": "nes-systests/benchmark/Nexmark_multiple_GB_of_Bids.test:05",
     # "YSB10k": "nes-systests/benchmark/YahooStreamingBenchmark_more_data.test:02",
-    # "NM1": "nes-systests/benchmark/Nexmark_multiple_GB_of_Bids.test:02",
     # "NM2": "nes-systests/benchmark/Nexmark_multiple_GB_of_Bids.test:03",
     # "NM5": "nes-systests/benchmark/Nexmark_multiple_GB_of_Bids.test:04",
-    # "NM8": "nes-systests/benchmark/Nexmark_multiple_GB_of_Bids.test:05",
     # "NM8_Variant": "nes-systests/benchmark/Nexmark_multiple_GB_of_Bids.test:06",
 }
 
@@ -79,7 +77,7 @@ def initialize_csv_file():
     print("Initializing CSV file...")
     with open(csv_file_path, mode='w', newline='') as csv_file:
         fieldnames = [
-            'bytesPerSecond', 'query name', 'time', 'tuplesPerSecond',
+            'bytesPerSecond', 'query name', 'time', 'tuplesPerSecond', 'tuplesPerSecond_listener',
             'executionMode', 'numberOfWorkerThreads', 'buffersInGlobalBufferManager',
             'joinStrategy', 'stringType',
             'bufferSizeInBytes', 'pageSize'
@@ -87,6 +85,32 @@ def initialize_csv_file():
         writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
         writer.writeheader()
         print("CSV file initialized with headers.")
+
+def parse_average_throughput_from_throughput_listener(console_output):
+    # Regular expression to parse each log line
+    log_pattern = re.compile(
+       r'Throughput for queryId (\d+) in window (\d+)-(\d+) is (\d+\.\d+) (\w?)Tup/s'
+    )
+
+    # List to store the extracted data
+    data = []
+    for line in console_output.split('\n'):
+        # Use regex to find matches in the log line
+        match = log_pattern.match(line)
+        if match:
+            throughput_value = float(match.group(4))
+            unit_prefix = match.group(5)
+            throughput_value = convert_unit_prefix(throughput_value, unit_prefix)
+
+            # Append the extracted data to the list
+            data.append(throughput_value)
+    data = data[:-1]
+
+    # Calculate average of the query
+    if len(data) == 0:
+        return -1
+    average_throughput = sum(data) / len(data)
+    return average_throughput
 
 def run_benchmark(config, stringType, query, queryIdx, workerConfigIdx, no_combinations, no_queries):
     # Create the working directory
@@ -133,14 +157,15 @@ def run_benchmark(config, stringType, query, queryIdx, workerConfigIdx, no_combi
 
     with open(csv_file_path, mode='a', newline='') as csv_file:
         writer = csv.DictWriter(csv_file, fieldnames=[
-            'bytesPerSecond', 'query name', 'time', 'tuplesPerSecond',
+            'bytesPerSecond', 'query name', 'time', 'tuplesPerSecond', 'tuplesPerSecond_listener',
             'executionMode', 'numberOfWorkerThreads', 'buffersInGlobalBufferManager',
             'joinStrategy', 'stringType',
             'bufferSizeInBytes', 'pageSize'
         ])
-        
+        average_throughput = parse_average_throughput_from_throughput_listener(stdout)
         for result in benchmark_results:
             result['query name'] = query
+            result['tuplesPerSecond_listener'] = average_throughput
             writer.writerow({**result, **config})
         print(f"Results for config {config} written to CSV.")
 
@@ -168,7 +193,11 @@ if __name__ == "__main__":
     parser.add_argument("-b", "--buffer-config", nargs="+", help="List of buffer configurations as tuples and buffer size is first, e.g., '(1234, 100) (128, 40)'.")
     parser.add_argument("-s", "--string-type", nargs="+", help="List of string types to run the queries.")
     parser.add_argument("-g", "--generate", action="store_true", help="Only generate systests (without Discard sink) and exit.")
+    parser.add_argument("--skip-build", action="store_true", help="Skip the build process and use existing binaries.")
+    parser.add_argument("-n", "--num-runs", type=int, default=1, help="Number of runs per experiment configuration.")
     args = parser.parse_args()
+
+    NUM_RUNS_PER_EXPERIMENT = args.num_runs
 
     # Ensure output directory exists
     os.makedirs(args.output_dir, exist_ok=True)
@@ -212,11 +241,12 @@ if __name__ == "__main__":
     # Checking if the script has been executed from the repository root
     check_repository_root()
 
-    # Create folder
-    # create_folder_and_remove_if_exists(build_dir)
+    if not args.skip_build:
+        # Create folder
+        create_folder_and_remove_if_exists(build_dir)
 
-    # Build NebulaStream
-    # compile_nebulastream(cmake_flags, build_dir)
+        # Build NebulaStream
+        compile_nebulastream(cmake_flags, build_dir)
 
     # Init csv files
     initialize_csv_file()
@@ -241,22 +271,6 @@ if __name__ == "__main__":
         for [executionMode, numberOfWorkerThreads, (bufferSizeInBytes, buffersInGlobalBufferManager), joinStrategy,
              stringType, pageSize] in combinations:
             workerConfigIdx += 1
-
-            # Otherwise we run out-of-memory / out-of-buffers
-            # if not args.buffer_config:
-            #     if query == "NM8":
-            #         buffersInGlobalBufferManager = 312000
-            #         bufferSizeInBytes = 400 * 1024
-
-            #     if query == "NM8" and  socket.gethostname() == "mif-ws":
-            #         buffersInGlobalBufferManager = 250000
-            #         bufferSizeInBytes = 250 * 1024
-
-            #     # For PI 4B with 8 GB of RAM
-            #     if socket.gethostname() == "docker-hostname":
-            #         buffersInGlobalBufferManager = 40000
-            #         bufferSizeInBytes = 102400
-
 
             config = {
                 'executionMode': executionMode,

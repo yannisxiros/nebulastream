@@ -1,0 +1,67 @@
+# name: milestone/AOLSearch_SingleSource.test
+# description: AOL Search benchmark focusing on self-joins and VARSIZED state management.
+# groups: [milestone, benchmark, large, Aggregation, Join]
+
+# Source definitions
+# Note: We treat the date string as VARSIZED to increase the memory load on the system.
+CREATE LOGICAL SOURCE search(anonId UINT64, query VARSIZED, ts UINT64, itemRank INT32, clickURL VARSIZED);
+CREATE PHYSICAL SOURCE FOR search TYPE File;
+ATTACH FILE large/aol2.csv
+
+CREATE SINK q0CheckSum(search.anonId UINT64, search.query VARSIZED) TYPE Checksum;
+CREATE SINK q1Agg(search.query VARSIZED, search.hits UINT64) TYPE Checksum;
+CREATE SINK q5Checksum(myquery VARSIZED, search.num UINT64) TYPE Checksum;
+CREATE SINK q8SelfJoinChecksum(s1_ts UINT64, s2_ts UINT64, anonId UINT64, q1 VARSIZED, q2 VARSIZED) TYPE Checksum;
+
+# Query 5: "Trending Now" (Sliding Window)
+SELECT myquery, num
+FROM (SELECT query as myquery, COUNT(query) AS num, start, end
+      FROM search
+      GROUP BY query
+      WINDOW SLIDING(ts, SIZE 10 SEC, ADVANCE BY 2 SEC))
+INNER JOIN (SELECT MAX(num_queries) AS max_tmp, start, end
+              FROM
+                    (SELECT query, COUNT(query) AS num_queries, start
+                     FROM search
+                     GROUP BY query
+                     WINDOW SLIDING(ts, SIZE 10 SEC, ADVANCE BY 2 SEC))
+              WINDOW TUMBLING(start, SIZE 2 SEC))
+ON num == max_tmp
+WINDOW TUMBLING(start, SIZE 2 SEC)
+INTO CHECKSUM();
+----
+4092 4640556
+
+# Query 0: Raw Ingest
+SELECT anonId, query FROM search INTO q0CheckSum;
+----
+3614506 8050838905
+
+# User Activity Aggregation
+SELECT
+    query,
+    COUNT(anonId) AS hits
+FROM search
+GROUP BY query
+WINDOW TUMBLING (ts, SIZE 10 MINUTES)
+INTO q1Agg;
+----
+3614506 8050838905
+
+# Query 2: VARSIZED  Match Filter
+SELECT anonId, query FROM search
+WHERE query = VARSIZED("google") OR query = VARSIZED("ebay") OR query = VARSIZED("yahoo")
+INTO q0CheckSum;
+----
+58689 62355683
+
+# Query 10:  Multi-Field Grouping
+#CREATE SINK q10Checksum(query VARSIZED, dt VARSIZED, cnt UINT64) TYPE Checksum;
+
+#SELECT query, datetime, COUNT(itemRank) AS cnt
+#FROM search
+#GROUP BY query, datetime
+#WINDOW SLIDING(timestamp, SIZE 30 SEC, ADVANCE BY 10 SEC)
+#INTO q10Checksum;
+#----
+#88392 44928374

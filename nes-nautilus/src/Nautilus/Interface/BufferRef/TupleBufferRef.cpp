@@ -220,7 +220,7 @@ VarVal TupleBufferRef::storeValue(
         throw UnknownDataType("Physical Type: {} is currently not supported", physicalType);
     }
 
-    if (physicalType.type == DataType::Type::VARSIZED)
+    if (physicalType.type == DataType::Type::VARSIZED || physicalType.type == DataType::Type::FLINK)
     {
         const auto varSizedValue = value.cast<VariableSizedData>();
         auto refToIndex = static_cast<nautilus::val<VariableSizedAccess*>>(fieldReference);

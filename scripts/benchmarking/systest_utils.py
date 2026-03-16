@@ -37,7 +37,6 @@ def check_generate_systest(allStringTypes, queries, queries_dir, benchmark_mode=
     # Iterate over each query with :0x at the end
     for _, query_path in queries.items():
         base_path = query_path.split(":", 1)[0]
-        print(base_path)
         base_filename = os.path.basename(base_path )
         match = re.match(r"([^\.]+)", base_filename)
         name_part = match.group(1) if match else base_filename
@@ -59,4 +58,4 @@ def check_generate_systest(allStringTypes, queries, queries_dir, benchmark_mode=
             
             with open(test_file_path, 'w') as dst_file:
                 dst_file.write(updated_content)
-            print(f"Created {test_file_path}")
+            if not benchmark_mode: print(f"Created {test_file_path}")

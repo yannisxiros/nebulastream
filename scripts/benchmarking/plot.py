@@ -16,60 +16,77 @@ def main():
 
     df = pd.read_csv(args.input_csv)
 
+    # Convert bufferSizeInBytes to KB for better readability in plots
+    if 'bufferSizeInBytes' in df.columns:
+        df['bufferSizeInKB'] = (df['bufferSizeInBytes'] / 1024).astype(int)
+
     # 2. Configure variables
-    target_metric = 'time'
     grouping_var = 'stringType'
     query_col = 'query name'
 
     # Columns to check for configuration changes
-    config_cols = ['numberOfWorkerThreads', 'executionMode', 'joinStrategy', 'bufferSizeInBytes', 'buffersInGlobalBufferManager', 'pageSize']
+    config_cols = ['numberOfWorkerThreads', 'executionMode', 'joinStrategy', 'bufferSizeInKB', 'pageSize']
+
+    # Define metrics to plot: (column_name, y_label, file_prefix, title_prefix)
+    metrics = [
+        ('tuplesPerSecond', 'Throughput (tuples/second)', 'throughput', 'Throughput Comparison'),
+        ('time', 'Execution Time (ms)', 'time', 'Execution Time Comparison')
+    ]
 
     # 3. Process each query
     for query in df[query_col].unique():
-        query_df = df[df[query_col] == query].copy()
+        query_base_df = df[df[query_col] == query].copy()
         
         # Identify variables that change (e.g., worker threads)
-        varying = [c for c in config_cols if query_df[c].nunique() > 1]
+        varying = [c for c in config_cols if query_base_df[c].nunique() > 1]
         
         # Create the X-axis label
         if not varying:
-            query_df['label'] = "Standard"
+            query_base_df['label'] = "Standard"
         else:
             # Create a label like "Threads: 4"
-            query_df['label'] = query_df[varying].astype(str).agg(', '.join, axis=1)
+            query_base_df['label'] = query_base_df[varying].astype(str).agg(', '.join, axis=1)
         
-        # Pivot so stringTypes are columns (side-by-side bars)
-        plot_data = query_df.pivot(index='label', columns=grouping_var, values=target_metric)
-        
-        # 4. Generate the plot
-        num_string_types = len(plot_data.columns)
-        cmap = plt.get_cmap('tab10')
-        colors = [cmap(i) for i in range(num_string_types)]
-        
-        ax = plot_data.plot(kind='bar', figsize=(10, 6), width=0.75, color=colors)
-        
-        plt.title(f"Execution Time Comparison - Query: {query}", fontsize=14, fontweight='bold')
-        plt.ylabel("Time (seconds)", fontsize=12)
-        plt.xlabel(f"Configuration ({', '.join(varying)})", fontsize=12)
-        plt.xticks(rotation=0)
-        plt.grid(axis='y', linestyle=':', alpha=0.7)
-        plt.legend(title="String Type", loc='best')
-        
-        # Annotate bars with precise time values (4 decimal places)
-        for p in ax.patches:
-            val = p.get_height()
-            if val > 0:
-                ax.annotate(f'{val:.4f}s', 
-                            (p.get_x() + p.get_width() / 2., val),
-                            ha='center', va='bottom', xytext=(0, 4), 
-                            textcoords='offset points', fontsize=9)
+        for target_metric, y_label, file_prefix, title_prefix in metrics:
+            if target_metric not in query_base_df.columns:
+                continue
 
-        plt.tight_layout()
-        output_path = os.path.join(args.output_dir, f"time_plot_{query}.png")
-        plt.savefig(output_path)
-        plt.close()
+            # Aggregate multiple runs by calculating the mean
+            query_df = query_base_df.groupby(['label', grouping_var])[target_metric].mean().reset_index()
 
-    print(f"Time-based bar plots saved as PNG files in {args.output_dir}.")
+            # Pivot so stringTypes are columns (side-by-side bars)
+            plot_data = query_df.pivot(index='label', columns=grouping_var, values=target_metric)
+            
+            # 4. Generate the plot
+            num_string_types = len(plot_data.columns)
+            cmap = plt.get_cmap('tab10')
+            colors = [cmap(i) for i in range(num_string_types)]
+            
+            ax = plot_data.plot(kind='bar', figsize=(10, 6), width=0.75, color=colors)
+            
+            plt.title(f"{title_prefix} - Query: {query}", fontsize=14, fontweight='bold')
+            plt.ylabel(y_label, fontsize=12)
+            plt.xlabel(f"Configuration ({', '.join(varying)})", fontsize=12)
+            plt.xticks(rotation=0)
+            plt.grid(axis='y', linestyle=':', alpha=0.7)
+            plt.legend(title="String Type", loc='best')
+            
+            # Annotate bars with precise values
+            for p in ax.patches:
+                val = p.get_height()
+                if val > 0:
+                    label = f'{val:,.0f}' if target_metric == 'tuplesPerSecond' else f'{val:,.2f}'
+                    ax.annotate(label, 
+                                (p.get_x() + p.get_width() / 2., val),
+                                ha='center', va='bottom', xytext=(0, 4), 
+                                textcoords='offset points', fontsize=9)
+
+            plt.tight_layout()
+            output_path = os.path.join(args.output_dir, f"{file_prefix}_plot_{query}.png")
+            plt.savefig(output_path)
+            plt.close()
+
+    print(f"Benchmark plots saved as PNG files in {args.output_dir}.")
 
 if __name__ == "__main__":
     main()
