@@ -10,8 +10,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-add_source_files(nes-nautilus
-        VariableSizedData.cpp
-        GermanVarsized.cpp
-        VarVal.cpp
+include(${PROJECT_SOURCE_DIR}/cmake/PluginRegistrationUtil.cmake)
+add_plugin_as_library(Discard Sink nes-sinks-registry discard_sink_plugin DiscardSink.cpp)
+add_plugin_as_library(Discard SinkValidation nes-sinks-registry discard_sink_validation_plugin DiscardSink.cpp)
+
+target_include_directories(discard_sink_plugin
+        PUBLIC include
+        PRIVATE .
+)
+target_include_directories(discard_sink_validation_plugin
+        PUBLIC include
+        PRIVATE .
 )

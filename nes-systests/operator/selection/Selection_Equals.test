@@ -55,7 +55,7 @@ CREATE SINK sinkStreamWithText(streamWithText.id UINT64, streamWithText.value UI
 CREATE SINK sinkId(stream.id UINT64)  TYPE File;
 
 # Filter equal
-SELECT id FROM stream WHERE value == UINT64(1) INTO sinkId;
+SELECT id FROM stream WHERE value == UINT64(1) INTO VOID();
 ----
 1
 12

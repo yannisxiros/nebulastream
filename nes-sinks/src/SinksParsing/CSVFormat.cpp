@@ -97,6 +97,23 @@ std::string CSVFormat::tupleBufferToFormattedCSVString(TupleBuffer tbuffer, cons
                           }
                           return varSizedData;
                       }
+                      else if (physicalType.type == DataType::Type::GERMAN_VARSIZED)
+                      {
+                          const VariableSizedAccess::StringEntry* variableSizedAccess =
+                                      std::bit_cast<const VariableSizedAccess::StringEntry*>(&tuple[formattingContext.offsets[index]]);
+
+                                  std::string varSizedData;
+                                  if (variableSizedAccess->size <= VariableSizedAccess::inlineBufSize)
+                                      varSizedData = std::string(reinterpret_cast<char const*>(&variableSizedAccess->prefix), variableSizedAccess->size);
+                                  else
+                                      varSizedData = std::string(reinterpret_cast<char const*>(variableSizedAccess->ptr), variableSizedAccess->size);
+                                  if (copyOfEscapeStrings)
+                                  {
+                                      return "\"" + varSizedData + "\"";
+                                  }
+                                  return varSizedData;
+
+                      }
                       return physicalType.formattedBytesToString(&tuple[formattingContext.offsets[index]]);
                   });
         ss << fmt::format("{}\n", fmt::join(fields, ","));

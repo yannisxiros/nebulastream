@@ -28,6 +28,7 @@ import socket
 import re
 
 from utils import *
+from systest_utils import check_generate_systest
 
 
 #### Benchmark Configurations
@@ -48,10 +49,9 @@ NUM_RUNS_PER_EXPERIMENT = 1
 
 #### Worker Configurations
 allExecutionModes = ["COMPILER"]  # ["COMPILER", "INTERPRETER"]
-allNumberOfWorkerThreads = ['4', '16']  #['1', '4', '8', '16', '24'] #['4', '16']
+allNumberOfWorkerThreads = ['4', '8']  #['1', '4', '8', '16', '24'] #['4', '16']
 allJoinStrategies = ["HASH_JOIN"]
-# Renamed from allSliceCacheTypes -> allStringTypes
-allStringTypes = ["VARSIZED", "FLINK"]
+allStringTypes = ["VARSIZED", "GERMAN_VARSIZED", "FLINK"]
 allPageSizes = [8192]
 # Buffer configurations for ~12GB memory usage (on 16GB RAM system)
 # Tuple format: (bufferSizeInBytes, buffersInGlobalBufferManager)
@@ -73,39 +73,6 @@ queries = {
     # "NM8": "nes-systests/benchmark/Nexmark_multiple_GB_of_Bids.test:05",
     # "NM8_Variant": "nes-systests/benchmark/Nexmark_multiple_GB_of_Bids.test:06",
 }
-
-def check_generate_systest(allStringTypes, queries, queries_dir):
-    # Ensure "strings" directory exists
-    strings_dir = os.path.join(queries_dir, "strings")
-    if not os.path.exists(strings_dir):
-        os.makedirs(strings_dir)
-
-    # Iterate over each query with :0x at the end
-    for _, query_path in queries.items():
-        base_path = query_path.split(":", 1)[0]
-        print(base_path)
-        base_filename = os.path.basename(base_path )
-        match = re.match(r"([^\.]+)", base_filename)
-        name_part = match.group(1) if match else base_filename
-        query_dir = os.path.join(strings_dir, name_part)
-        if not os.path.exists(query_dir):
-            os.makedirs(query_dir)
-        
-
-
-        # For each string type, ensure query_{string}.test exists
-        for string_type in allStringTypes:
-            test_file_name = f"{name_part}_{string_type}.test"
-            # Open the original file, replace VARSIZED with string_type, and write to test_file_path
-            test_file_path = os.path.join(query_dir, test_file_name)
-            # if not os.path.exists(test_file_path):
-            with open(base_path, 'r') as src_file:
-                content = src_file.read().replace("VARSIZED", string_type)
-            with open(test_file_path, 'w') as dst_file:
-                dst_file.write(content)
-            print(f"Created {test_file_path}")
-            # else:
-            # print(f"Exists {test_file_path}")
 
 def initialize_csv_file():
     """Initialize the CSV file with headers."""
@@ -135,9 +102,9 @@ def run_benchmark(config, stringType, query, queryIdx, workerConfigIdx, no_combi
         # Running the query with a particular worker configuration
         worker_config = (f"--worker.query_engine.number_of_worker_threads={numberOfWorkerThreads} "
                  f"--worker.default_query_execution.execution_mode={executionMode} "
-                 f"--worker.number_of_buffers_in_global_buffer_manager={buffersInGlobalBufferManager} "
                  f"--worker.default_query_execution.page_size={pageSize} "
-                 f"--worker.default_query_execution.operator_buffer_size={bufferSizeInBytes} ")
+                 f"--worker.default_query_execution.operator_buffer_size={bufferSizeInBytes} "
+                 f"--worker.number_of_buffers_in_global_buffer_manager={buffersInGlobalBufferManager} ")
         
         base_query_path, systest_num = queries[query].split(":", 1)
         base_filename = os.path.basename(base_query_path)
@@ -195,11 +162,17 @@ if __name__ == "__main__":
     # Initialize argument parser
     parser = argparse.ArgumentParser(description="Run NebulaStream queries.")
     parser.add_argument("--all", action="store_true", help="Run all queries.")
+    parser.add_argument("-o", "--output-dir", default=".", help="Output directory for results.")
     parser.add_argument("-q", "--queries", nargs="+", help="List of queries to run.")
     parser.add_argument("-w", "--worker-threads", nargs="+", help="Number of worker threads to run the queries.")
     parser.add_argument("-b", "--buffer-config", nargs="+", help="List of buffer configurations as tuples and buffer size is first, e.g., '(1234, 100) (128, 40)'.")
     parser.add_argument("-s", "--string-type", nargs="+", help="List of string types to run the queries.")
+    parser.add_argument("-g", "--generate", action="store_true", help="Only generate systests (without Discard sink) and exit.")
     args = parser.parse_args()
+
+    # Ensure output directory exists
+    os.makedirs(args.output_dir, exist_ok=True)
+    csv_file_path = os.path.join(args.output_dir, "results_nebulastream.csv")
 
     # Determine which queries to runW
     queries_to_run = queries
@@ -222,7 +195,13 @@ if __name__ == "__main__":
     if args.buffer_config:
         allBufferConfigs = parse_buffer_config(args.buffer_config)
 
-    check_generate_systest(string_types_to_run, queries_to_run, "nes-systests/benchmark")
+    if args.generate:
+        print("Generating systests without benchmark updates...")
+        check_generate_systest(string_types_to_run, queries_to_run, "nes-systests/benchmark", benchmark_mode=False)
+        print("Done.")
+        exit(0)
+
+    check_generate_systest(string_types_to_run, queries_to_run, "nes-systests/benchmark", benchmark_mode=True)
 
     # Print results
     print(",".join(queries_to_run.keys()))

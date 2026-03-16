@@ -28,6 +28,7 @@
 #include <DataTypes/DataType.hpp>
 #include <DataTypes/Schema.hpp>
 #include <Nautilus/DataTypes/DataTypesUtil.hpp>
+#include <Nautilus/DataTypes/GermanVarsized.hpp>
 #include <Nautilus/DataTypes/VarVal.hpp>
 #include <Nautilus/DataTypes/VariableSizedData.hpp>
 #include <Nautilus/Interface/Record.hpp>
@@ -37,6 +38,8 @@
 #include <Runtime/TupleBuffer.hpp>
 #include <Runtime/VariableSizedAccess.hpp>
 #include <magic_enum/magic_enum.hpp>
+#include <std/cstring.h>
+
 #include <ErrorHandling.hpp>
 #include <function.hpp>
 #include <val.hpp>
@@ -79,6 +82,47 @@ void copyVarSizedAndIncrementMetaData(
     /// We plan on getting rid of this "mis"-use in the near future.
     childBuffer.setNumberOfTuples(childBuffer.getNumberOfTuples() + varSizedValue.size());
 }
+}
+
+std::byte* TupleBufferRef::writeGermanVarSized(
+    TupleBuffer& tupleBuffer, AbstractBufferProvider& bufferProvider, const std::span<const std::byte> varSizedValue)
+{
+    const auto totalVarSizedLength = varSizedValue.size();
+
+    /// If there are no child buffers, we get a new buffer and copy the var sized into the newly acquired
+    const auto numberOfChildBuffers = tupleBuffer.getNumberOfChildBuffers();
+    if (numberOfChildBuffers == 0)
+    {
+        auto newChildBuffer = getNewBufferForVarSized(bufferProvider, totalVarSizedLength);
+        const auto childOffset = VariableSizedAccess::Offset{0};
+        const auto spaceInChildBuffer = newChildBuffer.getAvailableMemoryArea().subspan(childOffset.getRawOffset());
+        std::ranges::copy(varSizedValue, spaceInChildBuffer.begin());
+        newChildBuffer.setNumberOfTuples(newChildBuffer.getNumberOfTuples() + varSizedValue.size());
+        (void) tupleBuffer.storeChildBuffer(newChildBuffer);
+        return spaceInChildBuffer.data();
+    }
+
+    /// If there is no space in the lastChildBuffer, we get a new buffer and copy the var sized into the newly acquired
+    const VariableSizedAccess::Index childIndex{numberOfChildBuffers - 1};
+    auto lastChildBuffer = tupleBuffer.loadChildBuffer(childIndex);
+    const auto usedMemorySize = lastChildBuffer.getNumberOfTuples();
+    if (usedMemorySize + totalVarSizedLength >= lastChildBuffer.getBufferSize())
+    {
+        auto newChildBuffer = getNewBufferForVarSized(bufferProvider, totalVarSizedLength);
+        const auto childOffset = VariableSizedAccess::Offset{0};
+        const auto spaceInChildBuffer = newChildBuffer.getAvailableMemoryArea().subspan(childOffset.getRawOffset());
+        std::ranges::copy(varSizedValue, spaceInChildBuffer.begin());
+        newChildBuffer.setNumberOfTuples(newChildBuffer.getNumberOfTuples() + varSizedValue.size());
+        (void) tupleBuffer.storeChildBuffer(newChildBuffer);
+        return spaceInChildBuffer.data();
+    }
+
+    /// There is enough space in the lastChildBuffer, thus, we copy the var sized into it
+    const VariableSizedAccess::Offset childOffset{usedMemorySize};
+    const auto spaceInChildBuffer = lastChildBuffer.getAvailableMemoryArea().subspan(childOffset.getRawOffset());
+    std::ranges::copy(varSizedValue, spaceInChildBuffer.begin());
+    lastChildBuffer.setNumberOfTuples(lastChildBuffer.getNumberOfTuples() + varSizedValue.size());
+    return spaceInChildBuffer.data();
 }
 
 VariableSizedAccess TupleBufferRef::writeVarSized(
@@ -137,6 +181,11 @@ TupleBufferRef::loadValue(const DataType& physicalType, const RecordBuffer& reco
         return VarVal::readVarValFromMemory(fieldReference, physicalType.type);
     }
 
+    if (physicalType.type == DataType::Type::GERMAN_VARSIZED)
+    {
+        return GermanVarsized(fieldReference);
+    }
+
     auto variableSizedAccess = static_cast<nautilus::val<VariableSizedAccess*>>(fieldReference);
 
     const auto varSizedPtr = invoke(
@@ -171,29 +220,94 @@ VarVal TupleBufferRef::storeValue(
         throw UnknownDataType("Physical Type: {} is currently not supported", physicalType);
     }
 
-    const auto varSizedValue = value.cast<VariableSizedData>();
-    auto refToIndex = static_cast<nautilus::val<VariableSizedAccess*>>(fieldReference);
+    if (physicalType.type == DataType::Type::VARSIZED)
+    {
+        const auto varSizedValue = value.cast<VariableSizedData>();
+        auto refToIndex = static_cast<nautilus::val<VariableSizedAccess*>>(fieldReference);
 
-    invoke(
-        +[](TupleBuffer* tupleBuffer,
-            AbstractBufferProvider* bufferProvider,
-            const int8_t* varSizedPtr,
-            const uint64_t varSizedValueLength,
-            VariableSizedAccess* refToIndex)
+        invoke(
+            +[](TupleBuffer* tupleBuffer,
+                AbstractBufferProvider* bufferProvider,
+                const int8_t* varSizedPtr,
+                const uint64_t varSizedValueLength,
+                VariableSizedAccess* refToIndex)
+            {
+                INVARIANT(tupleBuffer != nullptr, "Tuplebuffer MUST NOT be null at this point");
+                INVARIANT(bufferProvider != nullptr, "BufferProvider MUST NOT be null at this point");
+                const std::span varSizedValueSpan{varSizedPtr, varSizedPtr + varSizedValueLength};
+                const VariableSizedAccess writtenAccess = writeVarSized(*tupleBuffer, *bufferProvider, std::as_bytes(varSizedValueSpan));
+                *refToIndex = writtenAccess;
+            },
+            recordBuffer.getReference(),
+            bufferProvider,
+            varSizedValue.getContent(),
+            varSizedValue.getSize(),
+            refToIndex);
+
+        return value;
+    }
+
+    if (value.isVarsized())
+    {
+        const auto varSizedValue = value.cast<VariableSizedData>();
+        auto refToIndex = static_cast<nautilus::val<VariableSizedAccess::StringEntry*>>(fieldReference);
+        *static_cast<nautilus::val<uint32_t*>>(refToIndex) = varSizedValue.getSize();
+
+        //copy into struct, if large overwrite with ptr
+        nautilus::memcpy(getMemberWithOffset<int8_t*>(refToIndex, offsetof(VariableSizedAccess::StringEntry, prefix)),
+            varSizedValue.getContent(), VariableSizedAccess::inlineBufSize);
+
+        if (varSizedValue.getSize() > VariableSizedAccess::inlineBufSize)
         {
-            INVARIANT(tupleBuffer != nullptr, "Tuplebuffer MUST NOT be null at this point");
-            INVARIANT(bufferProvider != nullptr, "BufferProvider MUST NOT be null at this point");
-            const std::span varSizedValueSpan{varSizedPtr, varSizedPtr + varSizedValueLength};
-            const VariableSizedAccess writtenAccess = writeVarSized(*tupleBuffer, *bufferProvider, std::as_bytes(varSizedValueSpan));
-            *refToIndex = writtenAccess;
-        },
-        recordBuffer.getReference(),
-        bufferProvider,
-        varSizedValue.getContent(),
-        varSizedValue.getSize(),
-        refToIndex);
+            invoke(
+            +[](TupleBuffer* tupleBuffer,
+                AbstractBufferProvider* bufferProvider,
+                const int8_t* varSizedPtr,
+                const uint32_t varSizedValueLength,
+                VariableSizedAccess::StringEntry* refToIndex)
+            {
+                INVARIANT(tupleBuffer != nullptr, "Tuplebuffer MUST NOT be null at this point");
+                INVARIANT(bufferProvider != nullptr, "BufferProvider MUST NOT be null at this point");
+                const std::span varSizedValueSpan{varSizedPtr, varSizedPtr + varSizedValueLength};
+                auto new_mem
+                    = writeGermanVarSized(*tupleBuffer, *bufferProvider, std::as_bytes(varSizedValueSpan));
+                refToIndex->ptr = reinterpret_cast<int8_t*>(new_mem);
+            },
+            recordBuffer.getReference(),
+            bufferProvider,
+            varSizedValue.getContent(),
+            varSizedValue.getSize(),
+            refToIndex);
+        }
+        return GermanVarsized(fieldReference);
+    }
+    const auto varSizedValue = value.cast<GermanVarsized>();
+    auto refToIndex = static_cast<nautilus::val<VariableSizedAccess::StringEntry*>>(fieldReference);
 
-    return value;
+    //copy all into struct, grab new buf if required
+    nautilus::memcpy(refToIndex, varSizedValue.getReference(),
+            sizeof(VariableSizedAccess::StringEntry));
+
+    if (varSizedValue.getSize() > VariableSizedAccess::inlineBufSize)
+    {
+        invoke(
+                +[](TupleBuffer* tupleBuffer,
+                    AbstractBufferProvider* bufferProvider,
+                    VariableSizedAccess::StringEntry* refToIndex)
+                {
+                    INVARIANT(tupleBuffer != nullptr, "Tuplebuffer MUST NOT be null at this point");
+                    INVARIANT(bufferProvider != nullptr, "BufferProvider MUST NOT be null at this point");
+
+                    const std::span varSizedValueSpan{refToIndex->ptr, refToIndex->ptr + refToIndex->size};
+                    auto new_mem
+                        = writeGermanVarSized(*tupleBuffer, *bufferProvider, std::as_bytes(varSizedValueSpan));
+                    refToIndex->ptr = reinterpret_cast<int8_t*>(new_mem);
+                },
+                recordBuffer.getReference(),
+                bufferProvider,
+                refToIndex);
+    }
+    return GermanVarsized(fieldReference);
 }
 
 bool TupleBufferRef::includesField(

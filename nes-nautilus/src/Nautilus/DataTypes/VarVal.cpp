@@ -19,6 +19,7 @@
 #include <type_traits>
 #include <utility>
 #include <variant>
+
 #include <DataTypes/DataType.hpp>
 #include <Nautilus/DataTypes/DataTypesUtil.hpp>
 #include <Nautilus/DataTypes/VariableSizedData.hpp>
@@ -26,6 +27,9 @@
 #include <nautilus/std/ostream.h>
 #include <nautilus/val.hpp>
 #include <nautilus/val_ptr.hpp>
+#include <std/cstring.h>
+#include "Runtime/VariableSizedAccess.hpp"
+
 #include <ErrorHandling.hpp>
 #include <nameof.hpp>
 #include <val_concepts.hpp>
@@ -62,7 +66,7 @@ void VarVal::writeToMemory(const nautilus::val<int8_t*>& memRef) const
     std::visit(
         [&]<typename ValType>(const ValType& val)
         {
-            if constexpr (std::is_same_v<ValType, VariableSizedData>)
+            if constexpr (std::is_same_v<ValType, VariableSizedData> || std::is_same_v<ValType, GermanVarsized>)
             {
                 throw UnknownOperation(std::string("VarVal T::operation=(val) not implemented for VariableSizedData"));
             }
@@ -134,7 +138,7 @@ VarVal VarVal::castToType(const DataType::Type type) const
         case DataType::Type::FLINK:
         case DataType::Type::GERMAN_VARSIZED:
         case DataType::Type::VARSIZED: {
-            return cast<VariableSizedData>();
+            return cast<GermanVarsized>();
         }
         case DataType::Type::CHAR:
         case DataType::Type::UNDEFINED:
@@ -185,7 +189,9 @@ VarVal VarVal::readVarValFromMemory(const nautilus::val<int8_t*>& memRef, const 
         }
         case DataType::Type::FLINK:
         case DataType::Type::GERMAN_VARSIZED:
-        case DataType::Type::VARSIZED:
+        case DataType::Type::VARSIZED: {
+            return GermanVarsized(memRef);
+        }
         case DataType::Type::UNDEFINED:
             throw UnknownDataType("Not supporting reading {} data type from memory.", magic_enum::enum_name(type));
     }
