@@ -71,7 +71,7 @@ def get_build_dir():
     if hostname == "mif-ws":
         build_dir = "build_dir"
     elif hostname == "hollow":
-        build_dir = "buid-docker"
+        build_dir = "build-docker"
     else:
         raise ValueError(f"Unknown hostname: {hostname}. Cannot determine build directory.")
 

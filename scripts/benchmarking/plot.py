@@ -40,19 +40,26 @@ def main():
         # Identify variables that change (e.g., worker threads)
         varying = [c for c in config_cols if query_base_df[c].nunique() > 1]
         
+        # Sort by varying columns to ensure numerical variables like bufferSizeInKB are ordered correctly
+        if varying:
+            query_base_df = query_base_df.sort_values(by=varying)
+
         # Create the X-axis label
         if not varying:
             query_base_df['label'] = "Standard"
         else:
             # Create a label like "Threads: 4"
             query_base_df['label'] = query_base_df[varying].astype(str).agg(', '.join, axis=1)
+            # Make label categorical to preserve the sorted order during pivoting
+            query_base_df['label'] = pd.Categorical(query_base_df['label'], categories=query_base_df['label'].unique(), ordered=True)
         
         for target_metric, y_label, file_prefix, title_prefix in metrics:
             if target_metric not in query_base_df.columns:
                 continue
 
-            # Aggregate multiple runs by calculating the mean
-            query_df = query_base_df.groupby(['label', grouping_var])[target_metric].mean().reset_index()
+            # Aggregate multiple runs by calculating the mean across the full configuration
+            group_cols = config_cols + [grouping_var, 'label']
+            query_df = query_base_df.groupby(group_cols, observed=True)[target_metric].mean().reset_index()
 
             # Pivot so stringTypes are columns (side-by-side bars)
             plot_data = query_df.pivot(index='label', columns=grouping_var, values=target_metric)

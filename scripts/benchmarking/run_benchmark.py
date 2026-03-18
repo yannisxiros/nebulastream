@@ -38,13 +38,6 @@ csv_file_path = "results_nebulastream.csv"
 benchmark_json_file = os.path.abspath(os.path.join(working_dir, "BenchmarkResults.json"))
 systest_executable = os.path.join(build_dir, "nes-systests/systest/systest")
 test_data_dir = "nes-systests/testdata"
-cmake_flags = ("-G Ninja "
-               "-DCMAKE_BUILD_TYPE=Release "
-               f"-DCMAKE_TOOLCHAIN_FILE={get_vcpkg_dir()} "
-               "-DUSE_LIBCXX_IF_AVAILABLE:BOOL=OFF "
-               "-DENABLE_LARGE_TESTS=1 "
-               "-DNES_LOG_LEVEL:STRING=LEVEL_NONE "
-               "-DNES_BUILD_NATIVE:BOOL=ON")
 NUM_RUNS_PER_EXPERIMENT = 1
 
 #### Worker Configurations
@@ -54,19 +47,20 @@ allJoinStrategies = ["HASH_JOIN"]
 allStringTypes = ["VARSIZED", "GERMAN_VARSIZED" , "FLINK"]
 allPageSizes = [8192]
 allBufferConfigs = [
-    (4096, 12000000),   # 1KB buffers: ~11.4GB
     (8192, 1500000),    # 8KB buffers: ~11.4GB
-    (32768, 375000),    # 32KB buffers: ~11.4GB
-    (102400, 120000),   # 100KB buffers: ~11.4GB
+    (65536, 187500),    # 64KB buffers: ~11.4GB
+    (131072, 93750),    # 128KB buffers: ~11.4GB
+    (262144, 46875),    # 256KB buffers: ~11.4GB
 ]
 
 #### Queries
 queries = {
     "AOL1": "nes-systests/benchmark/AOL.test:01",
     "AOL2": "nes-systests/benchmark/AOL.test:02",
-    "YSB": "nes-systests/benchmark/YahooStreamingBenchmark.test:02",
+    "AOL3": "nes-systests/benchmark/AOL.test:03",
     "NM8": "nes-systests/benchmark/Nexmark_multiple_GB_of_Bids.test:05",
-    # "YSB10k": "nes-systests/benchmark/YahooStreamingBenchmark_more_data.test:02",
+    "YSB": "nes-systests/benchmark/YahooStreamingBenchmark.test:02",
+    "YSB10k": "nes-systests/benchmark/YahooStreamingBenchmark_more_data.test:02",
     # "NM2": "nes-systests/benchmark/Nexmark_multiple_GB_of_Bids.test:03",
     # "NM5": "nes-systests/benchmark/Nexmark_multiple_GB_of_Bids.test:04",
     # "NM8_Variant": "nes-systests/benchmark/Nexmark_multiple_GB_of_Bids.test:06",
@@ -241,10 +235,16 @@ if __name__ == "__main__":
     # Checking if the script has been executed from the repository root
     check_repository_root()
 
-    if not args.skip_build:
+    if not args.skip_build and socket.gethostname() != "hollow":
         # Create folder
         create_folder_and_remove_if_exists(build_dir)
-
+        cmake_flags = ("-G Ninja "
+                       "-DCMAKE_BUILD_TYPE=Release "
+                       f"-DCMAKE_TOOLCHAIN_FILE={get_vcpkg_dir()} "
+                       "-DUSE_LIBCXX_IF_AVAILABLE:BOOL=OFF "
+                       "-DENABLE_LARGE_TESTS=1 "
+                       "-DNES_LOG_LEVEL:STRING=LEVEL_NONE "
+                       "-DNES_BUILD_NATIVE:BOOL=ON")
         # Build NebulaStream
         compile_nebulastream(cmake_flags, build_dir)
 
