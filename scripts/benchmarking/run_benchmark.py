@@ -53,58 +53,56 @@ allBufferConfigs = [
     (262144, 46875),    # 256KB buffers: ~11.4GB
 ]
 
+fieldnames =  [
+    'query name', 'stringType', 'time', 'tuplesPerSecond', 'bytesPerSecond' ,'avg_used_buffers', 'max_used_buffers',
+    'numberOfWorkerThreads', 'buffersInGlobalBufferManager',
+    'bufferSizeInBytes'
+]
+
 #### Queries
 queries = {
-    "AOL1": "nes-systests/benchmark/AOL.test:01",
-    "AOL2": "nes-systests/benchmark/AOL.test:02",
-    "AOL3": "nes-systests/benchmark/AOL.test:03",
-    "NM8": "nes-systests/benchmark/Nexmark_multiple_GB_of_Bids.test:05",
-    "YSB": "nes-systests/benchmark/YahooStreamingBenchmark.test:02",
-    "YSB10k": "nes-systests/benchmark/YahooStreamingBenchmark_more_data.test:02",
-    # "NM2": "nes-systests/benchmark/Nexmark_multiple_GB_of_Bids.test:03",
-    # "NM5": "nes-systests/benchmark/Nexmark_multiple_GB_of_Bids.test:04",
-    # "NM8_Variant": "nes-systests/benchmark/Nexmark_multiple_GB_of_Bids.test:06",
+    # "ZOO1": "nes-systests/benchmark/Zookeeper.test:01",
+    # "ZOO2": "nes-systests/benchmark/Zookeeper.test:02",
+    "ZOO3": "nes-systests/benchmark/Zookeeper.test:03",
+    # "AOL1": "nes-systests/benchmark/AOL.test:01",
+    # "AOL2": "nes-systests/benchmark/AOL.test:02",
+    # "AOL3": "nes-systests/benchmark/AOL.test:03",
+    # "NM8": "nes-systests/benchmark/Nexmark_multiple_GB_of_Bids.test:05",
+    # "YSB": "nes-systests/benchmark/YahooStreamingBenchmark.test:02",
+    "YSB10k": "nes-systests/benchmark/YahooStreamingBenchmark_more_data.test:02"
 }
 
 def initialize_csv_file():
     """Initialize the CSV file with headers."""
     print("Initializing CSV file...")
     with open(csv_file_path, mode='w', newline='') as csv_file:
-        fieldnames = [
-            'bytesPerSecond', 'query name', 'time', 'tuplesPerSecond', 'tuplesPerSecond_listener',
-            'executionMode', 'numberOfWorkerThreads', 'buffersInGlobalBufferManager',
-            'joinStrategy', 'stringType',
-            'bufferSizeInBytes', 'pageSize'
-        ]
         writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
         writer.writeheader()
         print("CSV file initialized with headers.")
 
-def parse_average_throughput_from_throughput_listener(console_output):
-    # Regular expression to parse each log line
+def parse_buffer_usage_from_listener(console_output):
+    # Regular expression to parse each log line from BufferManagerListener
     log_pattern = re.compile(
-       r'Throughput for queryId (\d+) in window (\d+)-(\d+) is (\d+\.\d+) (\w?)Tup/s'
+       r'BufferManager is currently using (\d+) out of (\d+) buffers, unpooled: (\d+)'
     )
 
     # List to store the extracted data
-    data = []
+    used_buffers_list = []
     for line in console_output.split('\n'):
         # Use regex to find matches in the log line
         match = log_pattern.match(line)
         if match:
-            throughput_value = float(match.group(4))
-            unit_prefix = match.group(5)
-            throughput_value = convert_unit_prefix(throughput_value, unit_prefix)
+            used_buffers = int(match.group(1))
+            used_buffers_list.append(used_buffers)
 
-            # Append the extracted data to the list
-            data.append(throughput_value)
-    data = data[:-1]
-
-    # Calculate average of the query
-    if len(data) == 0:
-        return -1
-    average_throughput = sum(data) / len(data)
-    return average_throughput
+    # Calculate average and max of the used buffers
+    if len(used_buffers_list) == 0:
+        return -1, -1
+        
+    avg_used_buffers = sum(used_buffers_list) / len(used_buffers_list)
+    max_used_buffers = max(used_buffers_list)
+    
+    return avg_used_buffers, max_used_buffers
 
 def run_benchmark(config, stringType, query, queryIdx, workerConfigIdx, no_combinations, no_queries):
     # Create the working directory
@@ -117,7 +115,8 @@ def run_benchmark(config, stringType, query, queryIdx, workerConfigIdx, no_combi
         bufferSizeInBytes = config['bufferSizeInBytes']
         pageSize = config['pageSize']
 
-        # Running the query with a particular worker configuration
+        # Running the query with a particular worker configuration@
+        
         worker_config = (f"--worker.query_engine.number_of_worker_threads={numberOfWorkerThreads} "
                  f"--worker.default_query_execution.execution_mode={executionMode} "
                  f"--worker.default_query_execution.page_size={pageSize} "
@@ -150,18 +149,26 @@ def run_benchmark(config, stringType, query, queryIdx, workerConfigIdx, no_combi
         exit(1)
 
     with open(csv_file_path, mode='a', newline='') as csv_file:
-        writer = csv.DictWriter(csv_file, fieldnames=[
-            'bytesPerSecond', 'query name', 'time', 'tuplesPerSecond', 'tuplesPerSecond_listener',
-            'executionMode', 'numberOfWorkerThreads', 'buffersInGlobalBufferManager',
-            'joinStrategy', 'stringType',
-            'bufferSizeInBytes', 'pageSize'
-        ])
-        average_throughput = parse_average_throughput_from_throughput_listener(stdout)
+        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+        avg_used_buffers, max_used_buffers = parse_buffer_usage_from_listener(stdout)
+
         for result in benchmark_results:
-            result['query name'] = query
-            result['tuplesPerSecond_listener'] = average_throughput
-            writer.writerow({**result, **config})
-        print(f"Results for config {config} written to CSV.")
+            merged = {**result, **config}
+            merged['query name'] = query
+            merged['avg_used_buffers'] = avg_used_buffers
+            merged['max_used_buffers'] = max_used_buffers
+            # Keep only fields that appear in `fieldnames`
+            row = {k: merged.get(k, '') for k in fieldnames}
+            writer.writerow(row)
+    # with open(csv_file_path, mode='a', newline='') as csv_file:
+    #     writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+    #     average_throughput = parse_average_throughput_from_throughput_listener(stdout)
+    #
+    #     for result in benchmark_results:
+    #         result['query name'] = query
+    #         result['tuplesPerSecond_listener'] = average_throughput
+    #         writer.writerow({**result, **config})
+    #     print(f"Results for config {config} written to CSV.")
 
 def parse_buffer_config(config_strings):
     """Parse a list of buffer config strings into a list of tuples."""
@@ -281,8 +288,6 @@ if __name__ == "__main__":
                 'pageSize': pageSize,
                 'stringType': stringType
             }
-
-            print(config)
 
             for i in range(NUM_RUNS_PER_EXPERIMENT):
                 run_benchmark(config, stringType, query, queryIdx + 1, workerConfigIdx, no_combinations, no_queries)

@@ -19,14 +19,18 @@
 #include <nautilus/std/sstream.h>
 #include <nautilus/val.hpp>
 
+
+
 namespace NES
 {
+class GermanVarsized;
 
 /// Forward declaring the class here, so that we can declare the operator==(const VariableSizedData, const nautilus::val<bool>) for it
 class VariableSizedData;
 nautilus::val<bool> operator==(const VariableSizedData& varSizedData, const nautilus::val<bool>& other);
 nautilus::val<bool> operator==(const nautilus::val<bool>& other, const VariableSizedData& varSizedData);
 
+/// We assume that the first 4 bytes of a int8_t* to any var sized data contains the length of the var sized data
 /// This class should not be used as standalone. Rather it should be used via the VarVal class
 class VariableSizedData
 {
@@ -50,6 +54,8 @@ public:
     /// content are byte-wise equal. To check the equality of the content, we compare the content byte-wise via a memcmp.
     nautilus::val<bool> operator==(const VariableSizedData&) const;
     nautilus::val<bool> operator!=(const VariableSizedData&) const;
+    nautilus::val<bool> operator==(const GermanVarsized&) const;
+    nautilus::val<bool> operator!=(const GermanVarsized&) const;
     nautilus::val<bool> operator!() const;
     [[nodiscard]] nautilus::val<bool> isValid() const;
 

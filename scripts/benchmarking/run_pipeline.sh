@@ -41,10 +41,10 @@ echo "Starting benchmark run... Output directory: $BASE_OUTPUT_DIR"
 python3 scripts/benchmarking/run_benchmark.py --output-dir "$BASE_OUTPUT_DIR" --all $SKIP_BUILD_FLAG --num-runs "$NUM_RUNS"
 
 # Generate the plots
-python3 scripts/benchmarking/plot.py --input-csv "${BASE_OUTPUT_DIR}/results_nebulastream.csv" --output-dir "$BASE_OUTPUT_DIR"
-
-# Cleanup: Deactivate and remove the virtual environment
-deactivate
+#python3 scripts/benchmarking/plot.py --input-csv "${BASE_OUTPUT_DIR}/results_nebulastream.csv" --output-dir "$BASE_OUTPUT_DIR"
+#
+## Cleanup: Deactivate and remove the virtual environment
+#deactivate
 echo "Cleaning up virtual environment..."
 rm -rf "$VENV_DIR"
 

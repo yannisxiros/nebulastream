@@ -253,7 +253,6 @@ void BufferControlBlock::setMemSize(const uint64_t memSize)
 void BufferControlBlock::incMemSize(const uint64_t increment)
 {
     this->memSize += increment;
-    INVARIANT(this->memSize <= 4096, "MemSize {} exceeded buffer size {}", this->memSize, 4096);
 }
 
 Timestamp BufferControlBlock::getWatermark() const noexcept

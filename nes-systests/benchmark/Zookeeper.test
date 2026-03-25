@@ -1,0 +1,24 @@
+# name: systest/ZookeeperQueries.test
+# description: Simple queries on Zookeeper large dataset
+# groups: [Zookeeper, Queries]
+
+CREATE LOGICAL SOURCE zookeeper(LineId UINT64, Date VARSIZED, Time VARSIZED, Level VARSIZED, Node VARSIZED, Component VARSIZED, Id UINT64, Content VARSIZED);
+CREATE PHYSICAL SOURCE FOR zookeeper TYPE File SET('CSV' AS PARSER.`TYPE`);
+ATTACH FILE large/Zookeeper_1M.csv
+
+
+SELECT LineId, Level, Time FROM zookeeper WHERE Level = VARSIZED("ERROR") OR Level = VARSIZED("WARN") INTO CHECKSUM();
+----
+661804 1027834996
+
+SELECT LineId, CONCAT(Date, Time) FROM zookeeper INTO CHECKSUM();
+----
+1000000 319667009
+
+SELECT Component, COUNT(id) FROM zookeeper GROUP BY Component WINDOW TUMBLING(LineId, size 2 sec) INTO CHECKSUM();
+----
+4632 9709750
+
+SELECT Level, COUNT(id) FROM zookeeper GROUP BY Level WINDOW TUMBLING(LineId, size 2 sec) INTO CHECKSUM();
+----
+1138 686591

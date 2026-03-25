@@ -17,12 +17,14 @@
 #include <cstdint>
 #include <ostream>
 #include <utility>
+
 #include <Nautilus/DataTypes/DataTypesUtil.hpp>
 #include <nautilus/std/cstring.h>
 #include <nautilus/std/ostream.h>
 #include <nautilus/val.hpp>
 #include <nautilus/val_ptr.hpp>
 #include <ErrorHandling.hpp>
+#include "Runtime/VariableSizedAccess.hpp"
 
 namespace NES
 {
@@ -90,7 +92,30 @@ nautilus::val<bool> VariableSizedData::operator==(const VariableSizedData& rhs) 
     return {compareResult};
 }
 
+nautilus::val<bool> VariableSizedData::operator==(const GermanVarsized& rhs) const
+{
+    const auto size = getSize();
+    const auto rhsSize = rhs.getSize();
+    if (size != rhsSize)
+    {
+        return {false};
+    }
+
+    if (nautilus::memcmp(getContent(), rhs.getPrefix(), VariableSizedAccess::inlineBufSize) != 0)
+        return {false};
+
+    const auto varSizedData = getContent();
+    const auto rhsVarSizedData = rhs.getContent();
+    const auto compareResult = (nautilus::memcmp(varSizedData, rhsVarSizedData, size) == 0);
+    return {compareResult};
+}
+
 nautilus::val<bool> VariableSizedData::operator!=(const VariableSizedData& rhs) const
+{
+    return !(*this == rhs);
+}
+
+nautilus::val<bool> VariableSizedData::operator!=(const GermanVarsized& rhs) const
 {
     return !(*this == rhs);
 }

@@ -27,7 +27,10 @@
 #include <Nautilus/Interface/HashMap/ChainedHashMap/ChainedHashMap.hpp>
 #include <Nautilus/Interface/Record.hpp>
 #include <Runtime/AbstractBufferProvider.hpp>
+#include <Runtime/VariableSizedAccess.hpp>
 #include <nautilus/val_ptr.hpp>
+#include <std/cstring.h>
+
 #include <ErrorHandling.hpp>
 #include <function.hpp>
 #include <static.hpp>
@@ -79,7 +82,11 @@ VarVal ChainedEntryMemoryProvider::readVarVal(
             const auto& entryRefCopy = entryRef;
             auto castedEntryAddress = static_cast<nautilus::val<int8_t*>>(entryRefCopy);
             const auto memoryAddress = castedEntryAddress + fieldOffset;
-            if (type.isType(DataType::Type::FLINK) || type.isType(DataType::Type::GERMAN_VARSIZED) || type.isType(DataType::Type::VARSIZED))
+            if (type.isType(DataType::Type::GERMAN_VARSIZED))
+            {
+                return GermanVarsized(memoryAddress);
+            }
+            if (type.isType(DataType::Type::FLINK) || type.isType(DataType::Type::VARSIZED))
             {
                 const auto varSizedDataPtr
                     = nautilus::invoke(+[](const int8_t** memoryAddressInEntry) { return *memoryAddressInEntry; }, memoryAddress);
@@ -111,6 +118,67 @@ Record ChainedEntryMemoryProvider::readRecord(const nautilus::val<ChainedHashMap
 
 namespace
 {
+[[maybe_unused]] void storeGerman(
+    const nautilus::val<ChainedHashMap*>& hashMapRef,
+    const nautilus::val<AbstractBufferProvider*>& bufferProviderRef,
+    const nautilus::val<int8_t*>& memoryAddress,
+    const VarVal& variableSizedData)
+{
+    auto refToIndex = static_cast<nautilus::val<VariableSizedAccess::StringEntry*>>(memoryAddress);
+    if (variableSizedData.isGermanVarsized())
+    {
+        auto newVarsized = variableSizedData.cast<GermanVarsized>();
+        nautilus::memcpy(refToIndex, newVarsized.getReference(), sizeof(VariableSizedAccess::StringEntry));
+        if (newVarsized.getSize() > VariableSizedAccess::inlineBufSize)
+        {
+            nautilus::invoke(
+            +[]([[maybe_unused]] ChainedHashMap* hashMap,
+                    [[maybe_unused]] AbstractBufferProvider* bufferProvider,
+                VariableSizedAccess::StringEntry* refToIndex,
+               [[maybe_unused]]  const int8_t* varSizedPtr,
+               [[maybe_unused]]  const uint64_t varSizedDataSize)
+            {
+                const std::span varSizedSpan{varSizedPtr, varSizedPtr + varSizedDataSize};
+                auto new_mem =  hashMap->allocateSpaceForVarSized(bufferProvider, varSizedDataSize);
+                std::ranges::copy(std::as_bytes(varSizedSpan), new_mem.begin());
+                refToIndex->ptr = reinterpret_cast<int8_t*>(new_mem.data());
+
+            },
+            hashMapRef,
+            bufferProviderRef,
+            refToIndex,
+            newVarsized.getContent(),
+            newVarsized.getSize());
+        }
+        return;
+    }
+    auto newVarsized = variableSizedData.cast<VariableSizedData>();
+    *static_cast<nautilus::val<uint32_t*>>(refToIndex) = newVarsized.getSize();
+    nautilus::memcpy(getMemberWithOffset<int8_t*>(refToIndex, offsetof(VariableSizedAccess::StringEntry, prefix)),
+    newVarsized.getContent(), VariableSizedAccess::inlineBufSize);
+
+    if (newVarsized.getSize() > VariableSizedAccess::inlineBufSize)
+    {
+        invoke(
+            +[]([[maybe_unused]] ChainedHashMap* hashMap,
+                [[maybe_unused]] AbstractBufferProvider* bufferProvider,
+                VariableSizedAccess::StringEntry* refToIndex,
+                [[maybe_unused]] const int8_t* varSizedPtr,
+                const uint64_t varSizedDataSize)
+        {
+            const std::span varSizedSpan{varSizedPtr, varSizedPtr + varSizedDataSize};
+            auto new_mem =  hashMap->allocateSpaceForVarSized(bufferProvider, varSizedDataSize);
+            std::ranges::copy(std::as_bytes(varSizedSpan), new_mem.begin());
+            refToIndex->ptr = reinterpret_cast<int8_t*>(new_mem.data());
+        },
+        hashMapRef,
+           bufferProviderRef,
+           refToIndex,
+           newVarsized.getContent(),
+           newVarsized.getSize());
+    }
+}
+
 void storeVarSized(
     const nautilus::val<ChainedHashMap*>& hashMapRef,
     const nautilus::val<AbstractBufferProvider*>& bufferProviderRef,
@@ -151,7 +219,13 @@ void ChainedEntryMemoryProvider::writeRecord(
         const auto& entryRefCopy = entryRef;
         auto castedEntryAddress = static_cast<nautilus::val<int8_t*>>(entryRefCopy);
         const auto memoryAddress = castedEntryAddress + fieldOffset;
-        if (type.isType(DataType::Type::FLINK) || type.isType(DataType::Type::GERMAN_VARSIZED) || type.isType(DataType::Type::VARSIZED))
+        if (type.isType(DataType::Type::GERMAN_VARSIZED))
+        {
+            // auto varSizedValue = value.cast<VariableSizedData>();
+            // storeVarSized(hashMapRef, bufferProvider, memoryAddress, varSizedValue);
+            storeGerman(hashMapRef, bufferProvider, memoryAddress, value);
+        }
+        else if (type.isType(DataType::Type::FLINK) || type.isType(DataType::Type::VARSIZED))
         {
             auto varSizedValue = value.cast<VariableSizedData>();
             storeVarSized(hashMapRef, bufferProvider, memoryAddress, varSizedValue);
@@ -173,7 +247,13 @@ void ChainedEntryMemoryProvider::writeEntryRef(
     {
         const auto value = readVarVal(otherEntryRef, fieldIdentifier);
         const auto memoryAddress = static_cast<nautilus::val<int8_t*>>(entryRef) + nautilus::val<uint64_t>(fieldOffset);
-        if (type.isType(DataType::Type::FLINK) || type.isType(DataType::Type::GERMAN_VARSIZED) || type.isType(DataType::Type::VARSIZED))
+        if (type.isType(DataType::Type::GERMAN_VARSIZED))
+        {
+            // auto varSizedValue = value.cast<VariableSizedData>();
+            // storeVarSized(hashMapRef, bufferProvider, memoryAddress, varSizedValue);
+            storeGerman(hashMapRef, bufferProvider, memoryAddress, value);
+        }
+        else if (type.isType(DataType::Type::FLINK) || type.isType(DataType::Type::VARSIZED))
         {
             auto varSizedValue = value.cast<VariableSizedData>();
             storeVarSized(hashMapRef, bufferProvider, memoryAddress, varSizedValue);
