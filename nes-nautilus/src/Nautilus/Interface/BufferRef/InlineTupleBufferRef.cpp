@@ -28,6 +28,7 @@
 #include <static.hpp>
 #include <val.hpp>
 #include "Nautilus/DataTypes/DataTypesUtil.hpp"
+#include <std/cstring.h>
 
 namespace NES
 {
@@ -140,16 +141,9 @@ void copyVarSizedAndIncrementMetaData(
 VariableSizedAccess writeString(
     TupleBuffer& tupleBuffer,
     AbstractBufferProvider& bufferProvider,
-    const std::span<const std::byte> varSizedValue,
-    const uint32_t offsetToPlace)
+    const std::span<const std::byte> varSizedValue)
 {
     const auto totalVarSizedLength = varSizedValue.size();
-    if (offsetToPlace + totalVarSizedLength <= tupleBuffer.getBufferSize())
-    {
-        copyVarSizedAndIncrementMetaData(tupleBuffer, VariableSizedAccess::Offset{offsetToPlace}, varSizedValue);
-        return VariableSizedAccess{
-            VariableSizedAccess::Index{-1U}, VariableSizedAccess::Offset{offsetToPlace}, VariableSizedAccess::Size{totalVarSizedLength}};
-    }
     const auto numberOfChildBuffers = tupleBuffer.getNumberOfChildBuffers();
     if (numberOfChildBuffers == 0)
     {
@@ -213,32 +207,38 @@ void InlineTupleBufferRef::writeRecord(
         }
 
         const auto varSizedValue = value.cast<VariableSizedData>();
+        if (runningSize + varSizedValue.getSize() <= recordBuffer.getMemSize())
+        {
+           nautilus::memcpy(recordAddress + runningSize, varSizedValue.getContent(), varSizedValue.getSize());
+            *static_cast<nautilus::val<uint64_t*>>( fieldAddress + offsetof(VariableSizedAccess, size)) = varSizedValue.getSize();
+            auto idxPtr = static_cast<nautilus::val<uint32_t*>>( fieldAddress + offsetof(VariableSizedAccess, index));
+            *idxPtr = uint32_t {-1U};
+            auto offtPtr = static_cast<nautilus::val<uint32_t*>>( fieldAddress + offsetof(VariableSizedAccess, offset));
+            *offtPtr = recordBuffer.getMemSize() + runningSize;
+            runningSize += varSizedValue.getSize();
+            continue;
+        }
+
         auto refToIndex = static_cast<nautilus::val<VariableSizedAccess*>>(fieldAddress);
-        runningSize +=
         invoke(
             +[](TupleBuffer* tupleBuffer,
                 AbstractBufferProvider* bufferProvider,
                 const int8_t* varSizedPtr,
                 const uint64_t varSizedValueLength,
-                VariableSizedAccess* refToIndex,
-                const uint32_t offsetToPlace)
+                VariableSizedAccess* refToIndex)
             {
                 INVARIANT(tupleBuffer != nullptr, "Tuplebuffer MUST NOT be null at this point");
                 INVARIANT(bufferProvider != nullptr, "BufferProvider MUST NOT be null at this point");
                 const std::span varSizedValueSpan{varSizedPtr, varSizedPtr + varSizedValueLength};
                 const VariableSizedAccess writtenAccess = writeString(*tupleBuffer, *bufferProvider,
-                    std::as_bytes(varSizedValueSpan), offsetToPlace);
+                    std::as_bytes(varSizedValueSpan));
                 *refToIndex = writtenAccess;
-                if (writtenAccess.getIndex().getRawIndex() == -1U)
-                    return varSizedValueLength;
-                return uint64_t{0};
             },
             recordBuffer.getReference(),
             bufferProvider,
             varSizedValue.getContent(),
             varSizedValue.getSize(),
-            refToIndex,
-            runningSize+recordBuffer.getMemSize());
+            refToIndex);
     }
     recordBuffer.incMemSize(runningSize);
 }
