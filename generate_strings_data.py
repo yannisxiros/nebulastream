@@ -8,8 +8,11 @@ import sys
 # CONFIGURATION KNOBS
 # ==========================================
 
+STRING_TYPES = ["VARSIZED", "GERMAN_VARSIZED", "FLINK"]
+
 # 1. Target total file size in Gigabytes
-TARGET_SIZE_GB = 1.0 
+TARGET_SIZE_GB = 1.0
+FILE = "long-20"
 
 # 2. Fixed size record configuration (in bytes)
 # The script will pad the schema with 8-byte integer columns 
@@ -22,27 +25,27 @@ STRING_FIELDS = [
     {
         "name": "short_str_field",
         "min_length": 5,
-        "max_length": 15,
-        "distinct_values": 100
+        "max_length": 20,
+        "distinct_values": 5000
     },
-    {
-        "name": "fixed_len_str",
-        "min_length": 32,
-        "max_length": 32,
-        "distinct_values": 5000,
-        "distribution": "zipf",    # Skewed distribution
-        "zipf_a": 1.5              # Skewness parameter (typically > 1.0, higher means more skewed)
-    },
-    {
-        "name": "long_str_field",
-        "min_length": 100,
-        "max_length": 500,
-        "distinct_values": 1000
-    }
+    # {
+    #     "name": "fixed_len_str",
+    #     "min_length": 32,
+    #     "max_length": 32,
+    #     "distinct_values": 5000,
+    #     "distribution": "zipf",
+    #     "zipf_a": 1.5
+    # },
+    # {
+    #     "name": "long_str_field",
+    #     "min_length": 100,
+    #     "max_length": 500,
+    #     "distinct_values": 1000
+    # }
 ]
 
 # 4. Output configuration
-OUTPUT_FILE = "test_string_data.csv"
+FILE_PATH = f"nes-systests/testdata/{FILE}.csv"
 BATCH_SIZE = 100_000  # Number of rows to hold in memory before writing to disk
 
 # ==========================================
@@ -61,9 +64,9 @@ def main():
     print("=== Data Generation Configuration ===")
     print(f"Target size:   {TARGET_SIZE_GB} GB")
     print(f"Fixed record:  ~{FIXED_RECORD_BYTES} bytes")
-    print(f"Output file:   {OUTPUT_FILE}")
+    print(f"Output file:   {FILE}")
     
-    num_dummy_cols = max(1, FIXED_RECORD_BYTES // 8)
+    num_dummy_cols = max(0, FIXED_RECORD_BYTES // 8)
     print(f"Action: Generating {num_dummy_cols} dummy integer columns (8 bytes each) to fulfill fixed size.")
 
     print("\nPre-generating distinct string pools (this might take a moment)...")
@@ -73,17 +76,14 @@ def main():
                 for _ in range(field["distinct_values"])]
         
         dist = field.get("distribution", "uniform").lower()
-        if dist == "zipf":
-            a = field.get("zipf_a", 1.5)
-            weights = generate_zipf_weights(field["distinct_values"], a)
-            print(f" - '{field['name']}': {field['distinct_values']} values (Zipf distribution, a={a}).")
-        else:
-            weights = None
-            print(f" - '{field['name']}': {field['distinct_values']} values (Uniform distribution).")
+        a = field.get("zipf_a", 1.5)
+        weights = generate_zipf_weights(field["distinct_values"], a) if dist == "zipf" else None
+        dist_label = f"Zipf distribution, a={a}" if dist == "zipf" else "Uniform distribution"
+        print(f" - '{field['name']}': {field['distinct_values']} values, length [{field['min_length']}-{field['max_length']}] ({dist_label}).")
             
         string_pools_info.append({"pool": pool, "weights": weights})
 
-    header = [f"dummy_int64_{i}" for i in range(num_dummy_cols)]
+    header = [f"int64_{i}" for i in range(num_dummy_cols)]
     header.extend([field["name"] for field in STRING_FIELDS])
 
     target_bytes = TARGET_SIZE_GB * 1024 * 1024 * 1024
@@ -93,9 +93,11 @@ def main():
     start_time = time.time()
 
     print("\nStarting generation...")
-    with open(OUTPUT_FILE, 'w', newline='', encoding='utf-8') as f:
+    with open(FILE_PATH, 'w', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
-        writer.writerow(header)
+        # We omit writing the CSV header because NebulaStream's CSV parser 
+        # will try to parse it as data and fail on the UINT64 columns.
+        # writer.writerow(header)
         
         bytes_written = f.tell()
 
@@ -133,6 +135,20 @@ def main():
     print(f"Total rows written: {rows_written:,}")
     print(f"Total file size:    {bytes_written / 1024 / 1024 / 1024:.2f} GB")
     print(f"Time taken:         {total_time:.2f} seconds")
+
+    print("\n=== NebulaStream Systest Schema ===")
+    schema_fields = [f"int64_{i} UINT64" for i in range(num_dummy_cols)]
+    schema_fields.extend([f"{field['name']} VARSIZED" for field in STRING_FIELDS])
+    schema_str = ", ".join(schema_fields)
+    print("You can copy/paste this into your .test file:")
+
+    for string_type in STRING_TYPES:
+        current_schema_str = schema_str.replace("VARSIZED", string_type)
+        stream_name = f"stream_{FILE}"
+        print(f"# For {string_type}:")
+        print(f"CREATE LOGICAL SOURCE {stream_name}({current_schema_str});")
+        print(f"CREATE PHYSICAL SOURCE FOR {stream_name} TYPE File;")
+        print(f"ATTACH FILE {FILE}.csv\n")
 
 if __name__ == '__main__':
     main()

@@ -42,7 +42,7 @@ NUM_RUNS_PER_EXPERIMENT = 1
 
 #### Worker Configurations
 allExecutionModes = ["COMPILER"]  # ["COMPILER", "INTERPRETER"]
-allNumberOfWorkerThreads = ['4', '8']  #['1', '4', '8', '16', '24'] #['4', '16']
+allNumberOfWorkerThreads = ['1']# '4']  #['1', '4', '8', '16', '24'] #['4', '16']
 allJoinStrategies = ["HASH_JOIN"]
 allStringTypes = ["VARSIZED", "GERMAN_VARSIZED" , "FLINK"]
 allPageSizes = [8192]
@@ -50,7 +50,7 @@ allBufferConfigs = [
     (8192, 1500000),    # 8KB buffers: ~11.4GB
     (65536, 187500),    # 64KB buffers: ~11.4GB
     (131072, 93750),    # 128KB buffers: ~11.4GB
-    (262144, 46875),    # 256KB buffers: ~11.4GB
+    # (262144, 46875),    # 256KB buffers: ~11.4GB
 ]
 
 fieldnames =  [
@@ -61,15 +61,19 @@ fieldnames =  [
 
 #### Queries
 queries = {
+    # "allshort": "nes-systests/benchmark/micro.test:01",
+    # "mixup": "nes-systests/benchmark/micro.test:02",
+    # "alllong": "nes-systests/benchmark/micro.test:03",
+    "longvar": "nes-systests/benchmark/micro.test:04",
     # "ZOO1": "nes-systests/benchmark/Zookeeper.test:01",
     # "ZOO2": "nes-systests/benchmark/Zookeeper.test:02",
-    "ZOO3": "nes-systests/benchmark/Zookeeper.test:03",
+    # "ZOO3": "nes-systests/benchmark/Zookeeper.test:03",
     # "AOL1": "nes-systests/benchmark/AOL.test:01",
     # "AOL2": "nes-systests/benchmark/AOL.test:02",
     # "AOL3": "nes-systests/benchmark/AOL.test:03",
     # "NM8": "nes-systests/benchmark/Nexmark_multiple_GB_of_Bids.test:05",
     # "YSB": "nes-systests/benchmark/YahooStreamingBenchmark.test:02",
-    "YSB10k": "nes-systests/benchmark/YahooStreamingBenchmark_more_data.test:02"
+    # "YSB10k": "nes-systests/benchmark/YahooStreamingBenchmark_more_data.test:02"
 }
 
 def initialize_csv_file():

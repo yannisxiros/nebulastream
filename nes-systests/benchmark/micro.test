@@ -1,0 +1,33 @@
+CREATE LOGICAL SOURCE stream_short(short_str_field VARSIZED);
+CREATE PHYSICAL SOURCE FOR stream_short TYPE File;
+ATTACH FILE short_str.csv
+
+CREATE LOGICAL SOURCE mixup(short_str_field VARSIZED);
+CREATE PHYSICAL SOURCE FOR mixup TYPE File;
+ATTACH FILE mixup.csv
+
+CREATE LOGICAL SOURCE long_str(short_str_field VARSIZED);
+CREATE PHYSICAL SOURCE FOR long_str TYPE File;
+ATTACH FILE long_str.csv
+
+CREATE LOGICAL SOURCE long_var(short_str_field VARSIZED);
+CREATE PHYSICAL SOURCE FOR long_var TYPE File;
+ATTACH FILE long_var.csv
+
+
+
+SELECT * FROM stream_short INTO CHECKSUM();
+----
+
+
+
+SELECT * FROM mixup INTO CHECKSUM();
+----
+
+
+SELECT * FROM long_str INTO CHECKSUM();
+----
+
+
+SELECT * FROM long_var INTO CHECKSUM();
+----
