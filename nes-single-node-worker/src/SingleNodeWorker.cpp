@@ -48,6 +48,7 @@
 
 #include <LatencyListener.hpp>
 #include <ThroughputListener.hpp>
+#include <BufferManagerListener.hpp>
 
 namespace NES
 {
@@ -101,7 +102,7 @@ SingleNodeWorker::SingleNodeWorker(const SingleNodeWorkerConfiguration& configur
     };
     constexpr auto timeIntervalInMilliSeconds = 200;
     const auto throughputListener = std::make_shared<ThroughputListener>(timeIntervalInMilliSeconds, throughputCallback);
-    listener->addQueryEngineListener(throughputListener);
+    // listener->addQueryEngineListener(throughputListener);
 
     if (configuration.workerConfiguration.latencyListener.getValue())
     {
@@ -140,6 +141,9 @@ SingleNodeWorker::SingleNodeWorker(const SingleNodeWorkerConfiguration& configur
 
 
     nodeEngine = NodeEngineBuilder(configuration.workerConfiguration, copyPtr(listener)).build(workerId);
+
+    const auto bufferManagerListener = std::make_shared<BufferManagerListener>(nodeEngine->getBufferManager());
+    // listener->addQueryEngineListener(bufferManagerListener);
 
     optimizer = std::make_unique<QueryOptimizer>(configuration.workerConfiguration.defaultQueryOptimization);
     compiler = std::make_unique<QueryCompilation::QueryCompiler>(configuration.workerConfiguration.defaultQueryExecution);
