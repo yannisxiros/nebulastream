@@ -205,11 +205,11 @@ void InlineTupleBufferRef::writeRecord(
             }
             throw UnknownDataType("Physical Type: {} is currently not supported", type);
         }
-
+        nautilus::val<uint64_t> takis=  invoke(+[](TupleBuffer* tupleBuffer){return tupleBuffer->getBufferSize();},recordBuffer.getReference());
         const auto varSizedValue = value.cast<VariableSizedData>();
-        if (runningSize + varSizedValue.getSize() <= recordBuffer.getMemSize())
+        if (runningSize + recordBuffer.getMemSize()+ varSizedValue.getSize() <= takis)
         {
-           nautilus::memcpy(recordAddress + runningSize, varSizedValue.getContent(), varSizedValue.getSize());
+            nautilus::memcpy(recordAddress + runningSize, varSizedValue.getContent(), varSizedValue.getSize());
             *static_cast<nautilus::val<uint64_t*>>( fieldAddress + offsetof(VariableSizedAccess, size)) = varSizedValue.getSize();
             auto idxPtr = static_cast<nautilus::val<uint32_t*>>( fieldAddress + offsetof(VariableSizedAccess, index));
             *idxPtr = uint32_t {-1U};

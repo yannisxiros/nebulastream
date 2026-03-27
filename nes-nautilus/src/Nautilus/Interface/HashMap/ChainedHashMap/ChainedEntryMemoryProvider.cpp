@@ -28,6 +28,7 @@
 #include <Nautilus/Interface/Record.hpp>
 #include <Runtime/AbstractBufferProvider.hpp>
 #include <Runtime/VariableSizedAccess.hpp>
+#include <Runtime/StringEntry.hpp>
 #include <nautilus/val_ptr.hpp>
 #include <std/cstring.h>
 
@@ -124,17 +125,17 @@ namespace
     const nautilus::val<int8_t*>& memoryAddress,
     const VarVal& variableSizedData)
 {
-    auto refToIndex = static_cast<nautilus::val<VariableSizedAccess::StringEntry*>>(memoryAddress);
+    auto refToIndex = static_cast<nautilus::val<StringEntry*>>(memoryAddress);
     if (variableSizedData.isGermanVarsized())
     {
         auto newVarsized = variableSizedData.cast<GermanVarsized>();
-        nautilus::memcpy(refToIndex, newVarsized.getReference(), sizeof(VariableSizedAccess::StringEntry));
-        if (newVarsized.getSize() > VariableSizedAccess::inlineBufSize)
+        nautilus::memcpy(refToIndex, newVarsized.getReference(), sizeof(StringEntry));
+        if (newVarsized.getSize() > inlineBufSize)
         {
             nautilus::invoke(
             +[]([[maybe_unused]] ChainedHashMap* hashMap,
                     [[maybe_unused]] AbstractBufferProvider* bufferProvider,
-                VariableSizedAccess::StringEntry* refToIndex,
+                StringEntry* refToIndex,
                [[maybe_unused]]  const int8_t* varSizedPtr,
                [[maybe_unused]]  const uint64_t varSizedDataSize)
             {
@@ -154,15 +155,15 @@ namespace
     }
     auto newVarsized = variableSizedData.cast<VariableSizedData>();
     *static_cast<nautilus::val<uint32_t*>>(refToIndex) = newVarsized.getSize();
-    nautilus::memcpy(getMemberWithOffset<int8_t*>(refToIndex, offsetof(VariableSizedAccess::StringEntry, prefix)),
-    newVarsized.getContent(), VariableSizedAccess::inlineBufSize);
+    nautilus::memcpy(getMemberWithOffset<int8_t*>(refToIndex, offsetof(StringEntry, prefix)),
+    newVarsized.getContent(), inlineBufSize);
 
-    if (newVarsized.getSize() > VariableSizedAccess::inlineBufSize)
+    if (newVarsized.getSize() > inlineBufSize)
     {
         invoke(
             +[]([[maybe_unused]] ChainedHashMap* hashMap,
                 [[maybe_unused]] AbstractBufferProvider* bufferProvider,
-                VariableSizedAccess::StringEntry* refToIndex,
+                StringEntry* refToIndex,
                 [[maybe_unused]] const int8_t* varSizedPtr,
                 const uint64_t varSizedDataSize)
         {

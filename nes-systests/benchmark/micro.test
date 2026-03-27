@@ -10,9 +10,15 @@ CREATE LOGICAL SOURCE long_str(short_str_field VARSIZED);
 CREATE PHYSICAL SOURCE FOR long_str TYPE File;
 ATTACH FILE long_str.csv
 
-CREATE LOGICAL SOURCE long_var(short_str_field VARSIZED);
-CREATE PHYSICAL SOURCE FOR long_var TYPE File;
-ATTACH FILE long_var.csv
+CREATE LOGICAL SOURCE various(u1 UINT64, u2 UINT64, short_str_field VARSIZED, wa VARSIZED);
+CREATE PHYSICAL SOURCE FOR various TYPE File;
+ATTACH FILE variety.csv
+
+
+CREATE LOGICAL SOURCE long_20 (wa VARSIZED);
+CREATE PHYSICAL SOURCE FOR long_20  TYPE File;
+ATTACH FILE long_20.csv
+
 
 
 
@@ -25,9 +31,17 @@ SELECT * FROM mixup INTO CHECKSUM();
 ----
 
 
+
 SELECT * FROM long_str INTO CHECKSUM();
 ----
 
 
-SELECT * FROM long_var INTO CHECKSUM();
+
+SELECT * FROM various INTO CHECKSUM();
 ----
+
+
+
+SELECT * FROM long_20 INTO CHECKSUM();
+----
+

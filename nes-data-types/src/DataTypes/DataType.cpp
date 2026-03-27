@@ -136,11 +136,12 @@ uint32_t DataType::getSizeInBytes() const
         case Type::FLOAT32:
             return 4;
         case Type::FLINK:
-        case Type::GERMAN_VARSIZED:
         case Type::VARSIZED:
             /// Returning '16' for VARSIZED, because we store 'uint64_t' 8-byte data that represent how to access the data, c.f., @class VariableSizedAccess
             /// and 8 bytes for the size of the VARSIZED
             return 16;
+        case Type::GERMAN_VARSIZED:
+            return 24;
         case Type::INT64:
         case Type::UINT64:
         case Type::FLOAT64:

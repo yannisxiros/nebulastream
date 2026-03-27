@@ -24,7 +24,7 @@
 #include <nautilus/val.hpp>
 #include <nautilus/val_ptr.hpp>
 #include <ErrorHandling.hpp>
-#include <Runtime/VariableSizedAccess.hpp>
+#include <Runtime/StringEntry.hpp>
 
 namespace NES
 {
@@ -90,7 +90,7 @@ nautilus::val<bool> GermanVarsized::operator==(const GermanVarsized& rhs) const
     }
 
     // //this is dumb should skip if both inline
-    if (nautilus::memcmp(getPrefix(), rhs.getPrefix(), VariableSizedAccess::prefixSize) != 0)
+    if (nautilus::memcmp(getPrefix(), rhs.getPrefix(), prefixSize) != 0)
         return {false};
 
     const auto varSizedData = getContent();
@@ -109,7 +109,7 @@ nautilus::val<bool> GermanVarsized::operator==(const VariableSizedData& rhs) con
     }
 
     //this is dumb should skip if both inline
-    if (nautilus::memcmp(getPrefix(), rhs.getContent(), VariableSizedAccess::prefixSize) != 0)
+    if (nautilus::memcmp(getPrefix(), rhs.getContent(), prefixSize) != 0)
         return {false};
 
     const auto varSizedData = getContent();
@@ -136,9 +136,9 @@ nautilus::val<bool> GermanVarsized::operator!() const
 
 [[nodiscard]] nautilus::val<int8_t*> GermanVarsized::getContent() const
 {
-    if (getSize() <= VariableSizedAccess::inlineBufSize)
+    if (getSize() <= inlineBufSize)
         return getPrefix();
-    auto ptr = getMemberWithOffset<int8_t**>(ptrToHeader, offsetof(VariableSizedAccess::StringEntry, ptr));
+    auto ptr = getMemberWithOffset<int8_t**>(ptrToHeader, offsetof(StringEntry, ptr));
     return readValueFromMemRef<int8_t*>(ptr);
 }
 
@@ -150,7 +150,7 @@ nautilus::val<bool> GermanVarsized::operator!() const
 
 [[nodiscard]] nautilus::val<int8_t*> GermanVarsized::getPrefix() const
 {
-    return getMemberWithOffset<int8_t*>(ptrToHeader, offsetof(VariableSizedAccess::StringEntry, prefix));
+    return getMemberWithOffset<int8_t*>(ptrToHeader, offsetof(StringEntry, prefix));
 }
 
 [[nodiscard]] nautilus::val<std::ostream>& operator<<(nautilus::val<std::ostream>& oss, const GermanVarsized& GermanVarsized)

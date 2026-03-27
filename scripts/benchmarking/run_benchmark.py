@@ -45,6 +45,7 @@ allExecutionModes = ["COMPILER"]  # ["COMPILER", "INTERPRETER"]
 allNumberOfWorkerThreads = ['1']# '4']  #['1', '4', '8', '16', '24'] #['4', '16']
 allJoinStrategies = ["HASH_JOIN"]
 allStringTypes = ["VARSIZED", "GERMAN_VARSIZED" , "FLINK"]
+# allStringTypes = [ "GERMAN_VARSIZED"]
 allPageSizes = [8192]
 allBufferConfigs = [
     (8192, 1500000),    # 8KB buffers: ~11.4GB
@@ -64,7 +65,8 @@ queries = {
     # "allshort": "nes-systests/benchmark/micro.test:01",
     # "mixup": "nes-systests/benchmark/micro.test:02",
     # "alllong": "nes-systests/benchmark/micro.test:03",
-    "longvar": "nes-systests/benchmark/micro.test:04",
+    # "various": "nes-systests/benchmark/micro.test:04",
+    "midway": "nes-systests/benchmark/micro.test:05",
     # "ZOO1": "nes-systests/benchmark/Zookeeper.test:01",
     # "ZOO2": "nes-systests/benchmark/Zookeeper.test:02",
     # "ZOO3": "nes-systests/benchmark/Zookeeper.test:03",

@@ -25,6 +25,7 @@
 #include <nautilus/val_ptr.hpp>
 #include <ErrorHandling.hpp>
 #include "Runtime/VariableSizedAccess.hpp"
+#include "Runtime/StringEntry.hpp"
 
 namespace NES
 {
@@ -101,7 +102,7 @@ nautilus::val<bool> VariableSizedData::operator==(const GermanVarsized& rhs) con
         return {false};
     }
 
-    if (nautilus::memcmp(getContent(), rhs.getPrefix(), VariableSizedAccess::inlineBufSize) != 0)
+    if (nautilus::memcmp(getContent(), rhs.getPrefix(), inlineBufSize) != 0)
         return {false};
 
     const auto varSizedData = getContent();

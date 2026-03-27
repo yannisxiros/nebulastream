@@ -37,6 +37,7 @@
 #include <Runtime/AbstractBufferProvider.hpp>
 #include <Runtime/TupleBuffer.hpp>
 #include <Runtime/VariableSizedAccess.hpp>
+#include <Runtime/StringEntry.hpp>
 #include <magic_enum/magic_enum.hpp>
 #include <std/cstring.h>
 
@@ -250,21 +251,21 @@ VarVal TupleBufferRef::storeValue(
     if (value.isVarsized())
     {
         const auto varSizedValue = value.cast<VariableSizedData>();
-        auto refToIndex = static_cast<nautilus::val<VariableSizedAccess::StringEntry*>>(fieldReference);
+        auto refToIndex = static_cast<nautilus::val<StringEntry*>>(fieldReference);
         *static_cast<nautilus::val<uint32_t*>>(refToIndex) = varSizedValue.getSize();
 
         //copy into struct, if large overwrite with ptr
-        nautilus::memcpy(getMemberWithOffset<int8_t*>(refToIndex, offsetof(VariableSizedAccess::StringEntry, prefix)),
-            varSizedValue.getContent(), VariableSizedAccess::inlineBufSize);
+        nautilus::memcpy(getMemberWithOffset<int8_t*>(refToIndex, offsetof(StringEntry, prefix)),
+            varSizedValue.getContent(), inlineBufSize);
 
-        if (varSizedValue.getSize() > VariableSizedAccess::inlineBufSize)
+        if (varSizedValue.getSize() > inlineBufSize)
         {
             invoke(
             +[](TupleBuffer* tupleBuffer,
                 AbstractBufferProvider* bufferProvider,
                 const int8_t* varSizedPtr,
                 const uint32_t varSizedValueLength,
-                VariableSizedAccess::StringEntry* refToIndex)
+                StringEntry* refToIndex)
             {
                 INVARIANT(tupleBuffer != nullptr, "Tuplebuffer MUST NOT be null at this point");
                 INVARIANT(bufferProvider != nullptr, "BufferProvider MUST NOT be null at this point");
@@ -282,18 +283,18 @@ VarVal TupleBufferRef::storeValue(
         return GermanVarsized(fieldReference);
     }
     const auto varSizedValue = value.cast<GermanVarsized>();
-    auto refToIndex = static_cast<nautilus::val<VariableSizedAccess::StringEntry*>>(fieldReference);
+    auto refToIndex = static_cast<nautilus::val<StringEntry*>>(fieldReference);
 
     //copy all into struct, grab new buf if required
     nautilus::memcpy(refToIndex, varSizedValue.getReference(),
-            sizeof(VariableSizedAccess::StringEntry));
+            sizeof(StringEntry));
 
-    if (varSizedValue.getSize() > VariableSizedAccess::inlineBufSize)
+    if (varSizedValue.getSize() > inlineBufSize)
     {
         invoke(
                 +[](TupleBuffer* tupleBuffer,
                     AbstractBufferProvider* bufferProvider,
-                    VariableSizedAccess::StringEntry* refToIndex)
+                    StringEntry* refToIndex)
                 {
                     INVARIANT(tupleBuffer != nullptr, "Tuplebuffer MUST NOT be null at this point");
                     INVARIANT(bufferProvider != nullptr, "BufferProvider MUST NOT be null at this point");

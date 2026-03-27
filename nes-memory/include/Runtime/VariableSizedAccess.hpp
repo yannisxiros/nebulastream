@@ -36,14 +36,6 @@ class BufferControlBlock;
 /// This allows us to have 4 billion child buffer (unless we have only one var sized object per child)
 struct VariableSizedAccess
 {
-    static constexpr size_t inlineBufSize = 12;
-    static constexpr size_t prefixSize = 4;
-    struct StringEntry
-    {
-        uint32_t size;
-        std::byte prefix[prefixSize];
-        int8_t* ptr;
-    };
 
     class Index
     {

@@ -24,6 +24,7 @@
 #include <DataTypes/Schema.hpp>
 #include <Runtime/TupleBuffer.hpp>
 #include <Runtime/VariableSizedAccess.hpp>
+#include <Runtime/StringEntry.hpp>
 #include <SinksParsing/Format.hpp>
 #include <fmt/format.h>
 #include <fmt/ranges.h>
@@ -99,10 +100,10 @@ std::string CSVFormat::tupleBufferToFormattedCSVString(TupleBuffer tbuffer, cons
                       }
                       if (physicalType.type == DataType::Type::GERMAN_VARSIZED)
                       {
-                          const VariableSizedAccess::StringEntry* variableSizedAccess =
-                                      std::bit_cast<const VariableSizedAccess::StringEntry*>(&tuple[formattingContext.offsets[index]]);
+                          const StringEntry* variableSizedAccess =
+                                      std::bit_cast<const StringEntry*>(&tuple[formattingContext.offsets[index]]);
                                   std::string varSizedData;
-                                  if (variableSizedAccess->size <= VariableSizedAccess::inlineBufSize)
+                                  if (variableSizedAccess->size <= inlineBufSize)
                                       varSizedData = std::string(reinterpret_cast<char const*>(&variableSizedAccess->prefix), variableSizedAccess->size);
                                   else
                                       varSizedData = std::string(reinterpret_cast<char const*>(variableSizedAccess->ptr), variableSizedAccess->size);
