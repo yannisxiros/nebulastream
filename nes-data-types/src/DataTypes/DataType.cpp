@@ -28,6 +28,7 @@
 #include <magic_enum/magic_enum.hpp>
 #include <DataTypeRegistry.hpp>
 #include <ErrorHandling.hpp>
+#include "Runtime/StringEntry.hpp"
 
 namespace
 {
@@ -141,7 +142,7 @@ uint32_t DataType::getSizeInBytes() const
             /// and 8 bytes for the size of the VARSIZED
             return 16;
         case Type::GERMAN_VARSIZED:
-            return 24;
+            return sizeof(StringEntry);
         case Type::INT64:
         case Type::UINT64:
         case Type::FLOAT64:

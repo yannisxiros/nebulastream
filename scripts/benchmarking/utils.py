@@ -57,10 +57,11 @@ def get_vcpkg_dir():
     # Determine the vcpkg directory based on the hostname
     if hostname == "mif-ws":
         vcpkg_dir = "/home/yannis/vcpkg/scripts/buildsystems/vcpkg.cmake"
-    elif hostname == "hostname":
+    elif hostname == "hollow":
         vcpkg_dir = "/vcpkg"
     else:
-        raise ValueError(f"Unknown hostname: {hostname}. Cannot determine vcpkg directory.")
+        # Default to local project vcpkg if inside docker or unknown host
+        vcpkg_dir = os.path.abspath("vcpkg-repository/scripts/buildsystems/vcpkg.cmake")
 
     return vcpkg_dir
 
@@ -73,7 +74,8 @@ def get_build_dir():
     elif hostname == "hollow":
         build_dir = "build-docker"
     else:
-        raise ValueError(f"Unknown hostname: {hostname}. Cannot determine build directory.")
+        # Default to build-docker for unknown hostnames (likely docker containers)
+        build_dir = "build-docker"
 
     return build_dir
 
@@ -150,11 +152,20 @@ def compile_nebulastream(cmake_flags, build_dir):
     if not cmake_path:
         raise RuntimeError("No suitable cmake (version >= 3.21) found in PATH.")
 
-    cmake_command = f"{cmake_path} {cmake_flags} -S . -B {build_dir}"
-    build_command = f"{cmake_path} --build {build_dir} --target systest"
+    # cmake_command = f"{cmake_path} {cmake_flags} -S . -B {build_dir}"
+    # build_command = f"{cmake_path} --build {build_dir} --target systest"
+    command =  "docker run -v $(pwd):/tmp/nebulastream --rm -w /tmp/nebulastream \
+  nebulastream/nes-development:local \
+  bash -c 'cmake -B build-docker -G Ninja \
+           -DCMAKE_BUILD_TYPE=Release \
+           -DCMAKE_TOOLCHAIN_FILE=/vcpkg/scripts/buildsystems/vcpkg.cmake \
+           -DNES_LOG_LEVEL:STRING=LEVEL_NONE  \
+           -DNES_BUILD_NATIVE=ON \ && \
+           cmake --build build-docker -j$(nproc) --target systest'"
 
-    print(f"Using cmake at: {cmake_path}")
-    print("Running cmake...")
-    run_command(cmake_command)
-    print("Building the project...")
-    run_command(build_command)
+    # print(f"Using cmake at: {cmake_path}")
+    run_command(command)
+    # print("Running cmake...")
+    # run_command(cmake_command)
+    # print("Building the project...")
+    # run_command(build_command)

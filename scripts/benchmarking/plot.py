@@ -65,9 +65,13 @@ def main():
             plot_data = query_df.pivot(index='label', columns=grouping_var, values=target_metric)
             
             # 4. Generate the plot
-            num_string_types = len(plot_data.columns)
-            cmap = plt.get_cmap('tab10')
-            colors = [cmap(i) for i in range(num_string_types)]
+            color_map = {
+                'VARSIZED': 'green',
+                'FLINK': 'blue',
+                'GERMAN_VARSIZED': 'orange',
+                'GERMAN_VARSIZED opt': 'red'
+            }
+            colors = [color_map.get(col, 'gray') for col in plot_data.columns]
             
             ax = plot_data.plot(kind='bar', figsize=(10, 6), width=0.75, color=colors)
             

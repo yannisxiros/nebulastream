@@ -82,20 +82,23 @@ nautilus::val<bool> GermanVarsized::isValid() const
 
 nautilus::val<bool> GermanVarsized::operator==(const GermanVarsized& rhs) const
 {
-    const auto size = getSize();
-    const auto rhsSize = rhs.getSize();
-    if (size != rhsSize)
+    auto header1 = readValueFromMemRef<uint64_t>(ptrToHeader);
+    auto header2 = readValueFromMemRef<uint64_t>(rhs.getReference());
+    
+    if (header1 != header2)
     {
         return {false};
     }
 
-    // //this is dumb should skip if both inline
-    if (nautilus::memcmp(getPrefix(), rhs.getPrefix(), prefixSize) != 0)
-        return {false};
+    const auto size = getSize();
+    if (size <= prefixSize)
+    {
+        return {true};
+    }
 
     const auto varSizedData = getContent();
     const auto rhsVarSizedData = rhs.getContent();
-    const auto compareResult = (nautilus::memcmp(varSizedData, rhsVarSizedData, size) == 0);
+    const auto compareResult = (nautilus::memcmp(varSizedData + nautilus::val<uint32_t>(prefixSize), rhsVarSizedData + nautilus::val<uint32_t>(prefixSize), size - nautilus::val<uint32_t>(prefixSize)) == 0);
     return {compareResult};
 }
 

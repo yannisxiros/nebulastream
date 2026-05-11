@@ -20,23 +20,38 @@
 #include <Util/Logger/Formatter.hpp>
 #include <ErrorHandling.hpp>
 
-#define NES_STRING_EXTRABUF_SIZE 16
+#ifndef NES_STRING_EXTRABUF_SIZE
+#define NES_STRING_EXTRABUF_SIZE 0
+#endif
 
 namespace NES
 {
 static constexpr size_t prefixSize = 4;
 
-struct StringEntry
+template <size_t ExtraBufSize = NES_STRING_EXTRABUF_SIZE>
+struct StringEntryTemplate
 {
     uint32_t size;
     std::byte prefix[prefixSize];
     int8_t* ptr;
-    #if NES_STRING_EXTRABUF_SIZE > 0
-    std::byte extrabuf[NES_STRING_EXTRABUF_SIZE];
-    #endif
+    std::byte extrabuf[ExtraBufSize];
+
+    static constexpr size_t getInlineBufSize() { return sizeof(StringEntryTemplate<ExtraBufSize>) - sizeof(uint32_t); }
 };
 
-static constexpr size_t inlineBufSize = sizeof(StringEntry)-sizeof(uint32_t); //all the struct - size
+template <>
+struct StringEntryTemplate<0>
+{
+    uint32_t size;
+    std::byte prefix[prefixSize];
+    int8_t* ptr;
+
+    static constexpr size_t getInlineBufSize() { return sizeof(StringEntryTemplate<0>) - sizeof(uint32_t); }
+};
+
+using StringEntry = StringEntryTemplate<NES_STRING_EXTRABUF_SIZE>;
+
+static constexpr size_t inlineBufSize = StringEntry::getInlineBufSize(); //all the struct - size
 static_assert(inlineBufSize >= sizeof(uint8_t*), "InlineBuf must store at least 8 bytes to hold a ptr");
 
 }

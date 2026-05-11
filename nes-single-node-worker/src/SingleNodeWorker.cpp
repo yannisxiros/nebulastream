@@ -143,7 +143,7 @@ SingleNodeWorker::SingleNodeWorker(const SingleNodeWorkerConfiguration& configur
     nodeEngine = NodeEngineBuilder(configuration.workerConfiguration, copyPtr(listener)).build(workerId);
 
     const auto bufferManagerListener = std::make_shared<BufferManagerListener>(nodeEngine->getBufferManager());
-    // listener->addQueryEngineListener(bufferManagerListener);
+    listener->addQueryEngineListener(bufferManagerListener);
 
     optimizer = std::make_unique<QueryOptimizer>(configuration.workerConfiguration.defaultQueryOptimization);
     compiler = std::make_unique<QueryCompilation::QueryCompiler>(configuration.workerConfiguration.defaultQueryExecution);

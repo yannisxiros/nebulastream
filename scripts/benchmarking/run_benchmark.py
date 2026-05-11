@@ -32,13 +32,13 @@ from systest_utils import check_generate_systest
 
 
 #### Benchmark Configurations
-build_dir = os.path.join(".", get_build_dir())
-working_dir = os.path.join(build_dir, "working_dir")
+build_dir = os.path.join(".", "build-docker")
+working_dir = os.path.join(os.getcwd(), "working_dir")
 csv_file_path = "results_nebulastream.csv"
 benchmark_json_file = os.path.abspath(os.path.join(working_dir, "BenchmarkResults.json"))
 systest_executable = os.path.join(build_dir, "nes-systests/systest/systest")
 test_data_dir = "nes-systests/testdata"
-NUM_RUNS_PER_EXPERIMENT = 1
+NUM_RUNS_PER_EXPERIMENT = 3
 
 #### Worker Configurations
 allExecutionModes = ["COMPILER"]  # ["COMPILER", "INTERPRETER"]
@@ -62,20 +62,11 @@ fieldnames =  [
 
 #### Queries
 queries = {
-    # "allshort": "nes-systests/benchmark/micro.test:01",
-    # "mixup": "nes-systests/benchmark/micro.test:02",
-    # "alllong": "nes-systests/benchmark/micro.test:03",
-    # "various": "nes-systests/benchmark/micro.test:04",
-    "midway": "nes-systests/benchmark/micro.test:05",
-    # "ZOO1": "nes-systests/benchmark/Zookeeper.test:01",
-    # "ZOO2": "nes-systests/benchmark/Zookeeper.test:02",
-    # "ZOO3": "nes-systests/benchmark/Zookeeper.test:03",
-    # "AOL1": "nes-systests/benchmark/AOL.test:01",
-    # "AOL2": "nes-systests/benchmark/AOL.test:02",
-    # "AOL3": "nes-systests/benchmark/AOL.test:03",
-    # "NM8": "nes-systests/benchmark/Nexmark_multiple_GB_of_Bids.test:05",
-    # "YSB": "nes-systests/benchmark/YahooStreamingBenchmark.test:02",
-    # "YSB10k": "nes-systests/benchmark/YahooStreamingBenchmark_more_data.test:02"
+    # "s4": "nes-systests/benchmark/filter_benchmark.test:01",
+    "exp1_100_0": "nes-systests/benchmark/exp1_100_0.test:01",
+    "exp2_80_20": "nes-systests/benchmark/exp2_80_20.test:01",
+    "exp3_50_50": "nes-systests/benchmark/exp3_50_50.test:01",
+    "exp4_0_100": "nes-systests/benchmark/exp4_0_100.test:01",
 }
 
 def initialize_csv_file():
@@ -120,6 +111,7 @@ def run_benchmark(config, stringType, query, queryIdx, workerConfigIdx, no_combi
         buffersInGlobalBufferManager = config['buffersInGlobalBufferManager']
         bufferSizeInBytes = config['bufferSizeInBytes']
         pageSize = config['pageSize']
+        core_pin = config.get('core')
 
         # Running the query with a particular worker configuration@
         
@@ -135,10 +127,25 @@ def run_benchmark(config, stringType, query, queryIdx, workerConfigIdx, no_combi
         this_query = f"nes-systests/benchmark/strings/{name_part}/{name_part}_{stringType}.test:{systest_num}"
 
         benchmark_command = f"{systest_executable} -b -t {os.path.abspath(this_query)} --data {test_data_dir} --workingDir={working_dir} -- {worker_config}"
+        
+        if core_pin is not None:
+            benchmark_command = f"taskset -c {core_pin} {benchmark_command}"
 
-        print(
-            f"Running {query} [{queryIdx}/{no_queries}] for worker configuration [{workerConfigIdx}/{no_combinations}]...")
+        print(f"Running {query} [{queryIdx}/{no_queries}] for worker configuration [{workerConfigIdx}/{no_combinations}]...")
         stdout = run_command(benchmark_command)
+
+        # Run an additional time with perf to capture hardware counters
+        perf_command = f"taskset -c {core_pin if core_pin is not None else '0'} perf stat -e task-clock,cycles,instructions,branches,branch-misses,L1-dcache-loads,L1-dcache-load-misses {systest_executable} -b -t {os.path.abspath(this_query)} --data {test_data_dir} --workingDir={working_dir} -- {worker_config}"
+        print(f"Running additional perf analysis for {query} ({stringType})...")
+        
+        # We don't want to fail the whole script if perf fails, so we catch errors
+        try:
+            perf_output = subprocess.check_output(perf_command, shell=True, stderr=subprocess.STDOUT, text=True)
+            with open(os.path.join(os.path.dirname(csv_file_path), "perf_report.txt"), "a") as perf_file:
+                perf_file.write(f"\\n\\n=== {query} | {stringType} ===\\n")
+                perf_file.write(perf_output)
+        except subprocess.CalledProcessError as e:
+            print(f"Perf analysis failed (you might need to run outside of Docker or with --privileged). Error: {e.output}")
 
         # Parse and save benchmark results
         with open(benchmark_json_file, 'r') as file:
@@ -202,6 +209,7 @@ if __name__ == "__main__":
     parser.add_argument("-g", "--generate", action="store_true", help="Only generate systests (without Discard sink) and exit.")
     parser.add_argument("--skip-build", action="store_true", help="Skip the build process and use existing binaries.")
     parser.add_argument("-n", "--num-runs", type=int, default=1, help="Number of runs per experiment configuration.")
+    parser.add_argument("-c", "--core", type=int, default=3, help="CPU core to pin the benchmark process to (e.g., '0', '0-3').")
     args = parser.parse_args()
 
     NUM_RUNS_PER_EXPERIMENT = args.num_runs

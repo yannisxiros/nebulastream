@@ -347,7 +347,7 @@ void writeFieldToBuffer(
     AbstractBufferProvider& bufferProvider)
 {
     Record record;
-    const RecordBuffer recordBuffer{std::addressof(tupleBuffer)};
+    RecordBuffer recordBuffer{std::addressof(tupleBuffer)};
     const auto fieldName = tupleBufferRef.getAllFieldNames().at(fieldIndex);
 
     /// Creating a Nautilus::Record containing the current field

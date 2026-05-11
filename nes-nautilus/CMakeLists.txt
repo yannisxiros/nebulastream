@@ -27,6 +27,10 @@ if (NES_ENABLE_PRECOMPILED_HEADERS)
     target_compile_options(nes-nautilus PUBLIC "-fPIC")
 endif ()
 
+if (NES_BUILD_BENCHMARKS)
+    add_subdirectory(benchmarks)
+endif()
+
 add_tests_if_enabled(tests)
 
 # Add nes-nautilus to the include directories
