@@ -138,6 +138,7 @@ uint32_t DataType::getSizeInBytes() const
             return 4;
         case Type::FLINK:
         case Type::VARSIZED:
+        case Type::DICTIONARY:
             /// Returning '16' for VARSIZED, because we store 'uint64_t' 8-byte data that represent how to access the data, c.f., @class VariableSizedAccess
             /// and 8 bytes for the size of the VARSIZED
             return 16;
@@ -171,6 +172,7 @@ std::string DataType::formattedBytesToString(const void* data) const
         case Type::INT32:
             return std::to_string(*static_cast<const int32_t*>(data));
         case Type::UINT32:
+        case Type::DICTIONARY:
             return std::to_string(*static_cast<const uint32_t*>(data));
         case Type::INT64:
             return std::to_string(*static_cast<const int64_t*>(data));
@@ -285,6 +287,12 @@ DataTypeRegistryReturnType DataTypeGeneratedRegistrar::RegisterFLINKDataType(Dat
 {
     return DataType{.type = DataType::Type::FLINK};
 }
+
+DataTypeRegistryReturnType DataTypeGeneratedRegistrar::RegisterDICTIONARYDataType(DataTypeRegistryArguments)
+{
+    return DataType{.type = DataType::Type::DICTIONARY};
+}
+
 
 bool DataType::isInteger() const
 {

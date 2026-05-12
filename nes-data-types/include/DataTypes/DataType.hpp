@@ -46,7 +46,8 @@ struct DataType final
         UNDEFINED,
         VARSIZED,
         FLINK,
-        GERMAN_VARSIZED
+        GERMAN_VARSIZED,
+        DICTIONARY
     };
 
     template <class T>

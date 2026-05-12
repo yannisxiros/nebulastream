@@ -211,6 +211,7 @@ bool compareStringAsTypeWithError(const NES::DataType::Type type, const Expected
         case NES::DataType::Type::CHAR:
         case NES::DataType::Type::FLINK:
         case NES::DataType::Type::GERMAN_VARSIZED:
+        case NES::DataType::Type::DICTIONARY:
         case NES::DataType::Type::VARSIZED:
             return left.getRawValue() == right.getRawValue();
         case NES::DataType::Type::FLOAT32:

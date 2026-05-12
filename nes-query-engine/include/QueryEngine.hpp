@@ -47,6 +47,7 @@ public:
     /// left over running queries. Dropping a RunningQueryPlan has to invoke a HardStop which must not emit
     /// further work into the TaskQueue.
     std::shared_ptr<BufferManager> bufferManager;
+    std::unique_ptr<TupleBuffer> dictionaryBuffer;
     std::shared_ptr<AbstractQueryStatusListener> statusListener;
     std::shared_ptr<QueryEngineStatisticListener> statisticListener;
     std::shared_ptr<QueryCatalog> queryCatalog;

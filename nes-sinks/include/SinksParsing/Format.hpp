@@ -47,7 +47,8 @@ public:
     static std::string readVarSizedDataAsString(const TupleBuffer& tupleBuffer, VariableSizedAccess variableSizedAccess)
     {
         /// Getting the pointer to the @class VariableSizedData with the first 32-bit storing the size.
-        const auto varSizedSpan = InlineTupleBufferRef::readString(tupleBuffer, variableSizedAccess);
+        // const auto varSizedSpan = InlineTupleBufferRef::readString(tupleBuffer, variableSizedAccess);
+        const auto varSizedSpan = TupleBufferRef::loadAssociatedVarSizedValue(tupleBuffer, variableSizedAccess);
         const auto* const strPtrContent = reinterpret_cast<const char*>(varSizedSpan.data());
         return std::string{strPtrContent, variableSizedAccess.getSize().getRawSize()};
     }

@@ -123,7 +123,8 @@ VarVal VarVal::castToType(const DataType::Type type) const
         case DataType::Type::UINT16: {
             return {cast<nautilus::val<uint16_t>>()};
         }
-        case DataType::Type::UINT32: {
+        case DataType::Type::UINT32:
+        case DataType::Type::DICTIONARY: {
             return {cast<nautilus::val<uint32_t>>()};
         }
         case DataType::Type::UINT64: {
@@ -189,6 +190,7 @@ VarVal VarVal::readVarValFromMemory(const nautilus::val<int8_t*>& memRef, const 
         }
         case DataType::Type::FLINK:
         case DataType::Type::GERMAN_VARSIZED:
+        case DataType::Type::DICTIONARY:
         case DataType::Type::VARSIZED: {
             return GermanVarsized(memRef);
         }

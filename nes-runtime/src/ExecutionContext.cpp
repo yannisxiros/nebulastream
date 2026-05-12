@@ -50,12 +50,24 @@ WorkerThreadId getWorkerThreadIdProxy(const PipelineExecutionContext* pec)
 {
     return pec->getId();
 }
+
+void* getDictionaryBufferProxy(PipelineExecutionContext* pec)
+{
+    return pec->getDictionaryPtr();
+}
+
+void* getDictMapBufferProxy(PipelineExecutionContext* pec)
+{
+    return pec->getDictMapPtr();
+}
 }
 
 ExecutionContext::ExecutionContext(const nautilus::val<PipelineExecutionContext*>& pipelineContext, const nautilus::val<Arena*>& arena)
     : pipelineContext(pipelineContext)
     , workerThreadId(nautilus::invoke(getWorkerThreadIdProxy, pipelineContext))
     , pipelineMemoryProvider(arena, invoke(getBufferProviderProxy, pipelineContext))
+    , dictionaryPtr(invoke(getDictionaryBufferProxy, pipelineContext))
+    , dictMapPtr(invoke(getDictMapBufferProxy, pipelineContext))
     , originId(INVALID<OriginId>)
     , watermarkTs(0_u64)
     , currentTs(0_u64)
@@ -63,6 +75,7 @@ ExecutionContext::ExecutionContext(const nautilus::val<PipelineExecutionContext*
     , chunkNumber(INVALID<ChunkNumber>)
     , lastChunk(true)
 {
+
 }
 
 nautilus::val<TupleBuffer*> ExecutionContext::allocateBuffer() const

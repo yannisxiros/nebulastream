@@ -30,6 +30,7 @@
 #include <Runtime/Execution/OperatorHandler.hpp>
 #include <Util/Logger/Logger.hpp>
 #include <Util/Strings.hpp>
+#include <DictionaryScanPhysicalOperator.hpp>
 #include <EmitOperatorHandler.hpp>
 #include <EmitPhysicalOperator.hpp>
 #include <ErrorHandling.hpp>
@@ -72,7 +73,6 @@ PhysicalOperator createScanOperator(
             configuredBufferSize);
     }
 
-    // const auto memoryProvider = LowerSchemaProvider::lowerSchema(configuredBufferSize, inputSchema.value(), MemoryLayoautType::STRINGS_INLINE);
     const auto memoryProvider = LowerSchemaProvider::lowerSchema(configuredBufferSize, inputSchema.value(), memoryLayout.value());
     /// Instantiate the scan with an InputFormatterTupleBufferRef, if the prior operatior is a source operator that contains a source descriptor
     /// with a parser type other than "NATIVE" (NATIVE data does not require formatting)
@@ -81,11 +81,19 @@ PhysicalOperator createScanOperator(
         const auto inputFormatterConfig = prevPipeline.getRootOperator().get<SourcePhysicalOperator>().getDescriptor().getParserConfig();
         if (toUpperCase(inputFormatterConfig.parserType) != "NATIVE")
         {
+            if (containsType(inputSchema.value(), DataType::Type::DICTIONARY))
+            {
+                return DictionaryScanPhysicalOperator(
+                    provideInputFormatterTupleBufferRef(inputFormatterConfig, memoryProvider), inputSchema->getFieldNames());
+            }
             return ScanPhysicalOperator(
-                provideInputFormatterTupleBufferRef(inputFormatterConfig,  LowerSchemaProvider::lowerSchema(configuredBufferSize, inputSchema.value(), memoryLayout.value())), inputSchema->getFieldNames());
+                provideInputFormatterTupleBufferRef(inputFormatterConfig, memoryProvider), inputSchema->getFieldNames());
         }
     }
-    return ScanPhysicalOperator( LowerSchemaProvider::lowerSchema(configuredBufferSize, inputSchema.value(), MemoryLayoutType::STRINGS_INLINE), inputSchema->getFieldNames());
+    if (containsType(inputSchema.value(), DataType::Type::FLINK)) {
+        return ScanPhysicalOperator( LowerSchemaProvider::lowerSchema(configuredBufferSize, inputSchema.value(), MemoryLayoutType::STRINGS_INLINE), inputSchema->getFieldNames());
+    }
+    return ScanPhysicalOperator( memoryProvider, inputSchema->getFieldNames());
 }
 
 /// Creates a new pipeline that contains a scan followed by the wrappedOpAfterScan. The newly created pipeline is a successor of the prevPipeline
@@ -111,7 +119,7 @@ void addDefaultEmit(const std::shared_ptr<Pipeline>& pipeline, const PhysicalOpe
 {
     PRECONDITION(pipeline->isOperatorPipeline(), "Only add emit physical operator to operator pipelines");
     const auto& schema = wrappedOp.getOutputSchema();
-    if (containsFlinkType(schema.value()))
+    if (containsType(schema.value(), DataType::Type::FLINK))
     {
         INVARIANT(schema.has_value(), "Wrapped operator has no output schema");
         const auto bufferRef = LowerSchemaProvider::lowerSchema(configuredBufferSize, schema.value(), MemoryLayoutType::STRINGS_INLINE);

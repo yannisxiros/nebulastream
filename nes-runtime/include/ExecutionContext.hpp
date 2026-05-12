@@ -107,6 +107,8 @@ struct ExecutionContext final
     const nautilus::val<PipelineExecutionContext*> pipelineContext;
     nautilus::val<WorkerThreadId> workerThreadId;
     PipelineMemoryProvider pipelineMemoryProvider;
+    nautilus::val<int8_t*> dictionaryPtr;
+    nautilus::val<int8_t*> dictMapPtr;
     nautilus::val<OriginId> originId; /// Stores the current origin id of the incoming tuple buffer. This is set in the scan.
     nautilus::val<Timestamp> watermarkTs; /// Stores the watermark timestamp of the incoming tuple buffer. This is set in the scan.
     nautilus::val<Timestamp> currentTs; /// Stores the current timestamp. This is set by a time function

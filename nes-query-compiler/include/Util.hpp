@@ -6,11 +6,11 @@
 
 namespace NES
 {
-inline bool containsFlinkType(const Schema& schema)
+inline bool containsType(const Schema& schema, DataType::Type innerType)
 {
     return std::ranges::any_of(schema, [&](const auto& fields)
     {
-        return fields.dataType == DataType{DataType::Type::FLINK};
+        return fields.dataType == DataType{innerType};
     });
 }
 

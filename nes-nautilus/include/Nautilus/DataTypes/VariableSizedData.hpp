@@ -59,6 +59,8 @@ public:
     nautilus::val<bool> operator!() const;
     [[nodiscard]] nautilus::val<bool> isValid() const;
 
+    inline static nautilus::val<uint64_t> dict = 0;
+
 private:
     nautilus::val<uint64_t> size;
     nautilus::val<int8_t*> ptrToVarSized;

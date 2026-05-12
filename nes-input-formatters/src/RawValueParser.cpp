@@ -105,6 +105,7 @@ void parseRawValueIntoRecord(
         }
         case DataType::Type::FLINK:
         case DataType::Type::GERMAN_VARSIZED:
+        case DataType::Type::DICTIONARY:
         case DataType::Type::VARSIZED: {
             switch (quotationType)
             {

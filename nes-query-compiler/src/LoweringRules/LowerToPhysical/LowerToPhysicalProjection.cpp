@@ -81,7 +81,7 @@ std::shared_ptr<PhysicalOperatorWrapper> createScanOperator(
         }
     }
 
-    if (containsFlinkType(inputSchema))
+    if (containsType(inputSchema, DataType::Type::FLINK))
     {
         auto memoryProvider = NES::LowerSchemaProvider::lowerSchema(bufferSize, inputSchema, MemoryLayoutType::STRINGS_INLINE);
         auto scan = NES::InlineScanPhysicalOperator(memoryProvider, inputSchema.getFieldNames());

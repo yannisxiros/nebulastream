@@ -110,6 +110,7 @@ PhysicalFunction FunctionProvider::lowerConstantFunction(const ConstantValueLogi
             return ConstantBooleanValueFunction(parseConstantValue<bool>(stringValue));
         case DataType::Type::CHAR:
             return ConstantCharValueFunction(parseConstantValue<char>(stringValue));
+        case DataType::Type::DICTIONARY:
         case DataType::Type::FLINK:
         case DataType::Type::GERMAN_VARSIZED:
         case DataType::Type::VARSIZED: {

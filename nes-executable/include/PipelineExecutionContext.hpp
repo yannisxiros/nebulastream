@@ -57,6 +57,9 @@ public:
     [[nodiscard]] virtual std::shared_ptr<AbstractBufferProvider> getBufferManager() const = 0;
     [[nodiscard]] virtual PipelineId getPipelineId() const = 0;
 
+    [[nodiscard]] virtual void* getDictionaryPtr() const = 0;
+    [[nodiscard]] virtual void* getDictMapPtr() const = 0;
+
     /// TODO #30 Remove OperatorHandler from the pipeline execution context
     virtual std::unordered_map<OperatorHandlerId, std::shared_ptr<OperatorHandler>>& getOperatorHandlers() = 0;
     virtual void setOperatorHandlers(std::unordered_map<OperatorHandlerId, std::shared_ptr<OperatorHandler>>&) = 0;

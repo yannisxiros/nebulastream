@@ -149,6 +149,7 @@ void SIMDJSONFIF::writeValueToRecord(
         }
         case DataType::Type::FLINK:
         case DataType::Type::GERMAN_VARSIZED:
+        case DataType::Type::DICTIONARY:
         case DataType::Type::VARSIZED: {
             record.write(fieldName, parseStringIntoNautilusRecord(fieldIdx, fieldIndexFunction, metaData));
             return;
