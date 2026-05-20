@@ -12,6 +12,7 @@
     limitations under the License.
 */
 #include <ExecutionContext.hpp>
+#include <QueryDict.hpp>
 
 #include <cstddef>
 #include <cstdint>
@@ -51,14 +52,9 @@ WorkerThreadId getWorkerThreadIdProxy(const PipelineExecutionContext* pec)
     return pec->getId();
 }
 
-void* getDictionaryBufferProxy(PipelineExecutionContext* pec)
+QueryDict* getQueryDictProxy(PipelineExecutionContext* pec)
 {
-    return pec->getDictionaryPtr();
-}
-
-void* getDictMapBufferProxy(PipelineExecutionContext* pec)
-{
-    return pec->getDictMapPtr();
+    return pec->getQueryDict();
 }
 }
 
@@ -66,8 +62,7 @@ ExecutionContext::ExecutionContext(const nautilus::val<PipelineExecutionContext*
     : pipelineContext(pipelineContext)
     , workerThreadId(nautilus::invoke(getWorkerThreadIdProxy, pipelineContext))
     , pipelineMemoryProvider(arena, invoke(getBufferProviderProxy, pipelineContext))
-    , dictionaryPtr(invoke(getDictionaryBufferProxy, pipelineContext))
-    , dictMapPtr(invoke(getDictMapBufferProxy, pipelineContext))
+    , queryDict(invoke(getQueryDictProxy, pipelineContext))
     , originId(INVALID<OriginId>)
     , watermarkTs(0_u64)
     , currentTs(0_u64)
@@ -152,6 +147,11 @@ nautilus::val<OperatorHandler*> ExecutionContext::getGlobalOperatorHandler(const
 {
     const auto handlerIndexValue = nautilus::val<uint64_t>(handlerIndex.getRawValue());
     return nautilus::invoke(getGlobalOperatorHandlerProxy, pipelineContext, handlerIndexValue);
+}
+
+QueryDictRef ExecutionContext::getQueryDict() const
+{
+    return QueryDictRef(queryDict);
 }
 
 }

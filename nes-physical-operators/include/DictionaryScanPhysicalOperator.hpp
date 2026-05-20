@@ -17,10 +17,12 @@ Licensed under the Apache License, Version 2.0 (the "License");
 #include <memory>
 #include <optional>
 #include <vector>
+
 #include <Nautilus/Interface/BufferRef/TupleBufferRef.hpp>
 #include <Nautilus/Interface/Record.hpp>
 #include <Nautilus/Interface/RecordBuffer.hpp>
 #include <PhysicalOperator.hpp>
+#include "Nautilus/Interface/Hash/HashFunction.hpp"
 
 namespace NES
 {
@@ -43,6 +45,7 @@ private:
     std::vector<Record::RecordFieldIdentifier> projections;
     std::optional<PhysicalOperator> child;
     bool isRawScan = false;
+    std::shared_ptr<HashFunction> hashFunction;
 
     void rawScan(ExecutionContext& executionCtx, RecordBuffer& recordBuffer) const;
 };

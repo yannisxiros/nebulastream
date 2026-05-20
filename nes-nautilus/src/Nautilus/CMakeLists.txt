@@ -17,4 +17,3 @@ add_source_files(nes-nautilus
 
 add_subdirectory(DataTypes)
 add_subdirectory(Interface)
-add_subdirectory(Dictionary)

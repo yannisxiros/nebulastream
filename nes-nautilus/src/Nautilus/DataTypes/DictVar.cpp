@@ -84,7 +84,6 @@ nautilus::val<bool> DictVar::isValid() const
 
 nautilus::val<bool> DictVar::operator==(const DictVar& rhs) const
 {
-    return{false};
     if (size != rhs.size)
     {
         return {false};
@@ -150,4 +149,16 @@ nautilus::val<bool> DictVar::operator!() const
     }
     return oss;
 }
+nautilus::val<bool> DictVar::inRegion() const
+{
+    return (getContent() & dictAddrMask) == (dictAddr & dictAddrMask);
+}
+
+nautilus::val<uint64_t> DictVar::getHash() const
+{
+    auto hashAddrInt =  static_cast<nautilus::val<uint64_t*>>(getContent());
+    return hashAddrInt[-1];
+}
+
+
 }

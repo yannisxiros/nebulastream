@@ -59,7 +59,12 @@ public:
     nautilus::val<bool> operator!() const;
     [[nodiscard]] nautilus::val<bool> isValid() const;
 
-    inline static nautilus::val<uint64_t> dict = 0;
+    nautilus::val<bool> inRegion() const;
+    nautilus::val<uint64_t> getHash() const;
+
+
+    inline static nautilus::val<uint64_t> dictAddr = 0;
+    constexpr static uint64_t dictAddrMask = ~0x03FF; // the upper 64-19=45 bits
 
 private:
     nautilus::val<uint64_t> size;

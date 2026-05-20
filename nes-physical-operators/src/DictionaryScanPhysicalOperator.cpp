@@ -41,6 +41,7 @@ DictionaryScanPhysicalOperator::DictionaryScanPhysicalOperator(
     : bufferRef(std::move(bufferRef))
     , projections(std::move(projections))
     , isRawScan(std::dynamic_pointer_cast<InputFormatterTupleBufferRef>(this->bufferRef) != nullptr)
+    , hashFunction(std::make_shared<MurMur3HashFunction>())
 {
 }
 
@@ -49,15 +50,17 @@ void DictionaryScanPhysicalOperator::setup(ExecutionContext& executionCtx, Compi
     PhysicalOperatorConcept::setup(executionCtx, compilationContext);
 }
 
-void ovewriteRecordDict(Record& record)
+void ovewriteRecordDict(Record& record, ExecutionContext& ctx, HashFunction& hashFunction [[maybe_unused]])
 {
+    auto takis = ctx.getQueryDict();
     for (const auto& field : record.getAllFieldIdentifiers())
     {
         auto value = record.read(field);
         if (value.isVarsized())
         {
             auto varSizedData = value.cast<VariableSizedData>();
-            auto dictVar = DictVar(varSizedData.getContent(), varSizedData.getSize());
+            auto dictVar = takis.insert(varSizedData, hashFunction);
+            // auto dictVar = DictVar(varSizedData.getContent(), varSizedData.getSize());
             record.write(field, dictVar);
         }
     }
@@ -79,19 +82,7 @@ void DictionaryScanPhysicalOperator::rawScan(ExecutionContext& executionCtx, Rec
     /// process buffer
     const auto executeChildLambda = [this](ExecutionContext& executionCtx, Record& record)
     {
-        /// Increment the counter at the start of the dictionary buffer
-        nautilus::invoke(
-            +[](int8_t* dictionaryBuffer)
-            {
-                if (dictionaryBuffer)
-                {
-                    auto* counter = reinterpret_cast<std::atomic<uint64_t>*>(dictionaryBuffer);
-                    counter->fetch_add(1, std::memory_order_relaxed);
-                }
-            },
-            executionCtx.dictionaryPtr);
-
-        ovewriteRecordDict(record);
+        ovewriteRecordDict(record, executionCtx, *hashFunction);
         executeChild(executionCtx, record);
     };
     inputFormatterBufferRef->readBuffer(executionCtx, recordBuffer, executeChildLambda);
@@ -107,8 +98,6 @@ void DictionaryScanPhysicalOperator::open(ExecutionContext& executionCtx, Record
     executionCtx.chunkNumber = recordBuffer.getChunkNumber();
     executionCtx.lastChunk = recordBuffer.isLastChunk();
 
-    DictVar::dict = 32;
-
     if (isRawScan)
     {
         rawScan(executionCtx, recordBuffer);
@@ -121,7 +110,7 @@ void DictionaryScanPhysicalOperator::open(ExecutionContext& executionCtx, Record
     for (nautilus::val<uint64_t> i = 0_u64; i < numberOfRecords; i = i + 1_u64)
     {
         auto record = bufferRef->readRecord(projections, recordBuffer, i);
-        ovewriteRecordDict(record);
+        ovewriteRecordDict(record, executionCtx, *hashFunction);
         executeChild(executionCtx, record);
     }
 }

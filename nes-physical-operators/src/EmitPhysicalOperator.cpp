@@ -120,16 +120,16 @@ void setChunkNumber(
 
 void logDictionaryCounter(const ExecutionContext& context)
 {
-    auto counterVal = readValueFromMemRef<uint64_t>(context.dictionaryPtr);
-    if (DictVar::dict  == 32)
+    auto lala = context.getQueryDict();
+    if (lala.getInserted() == 2)
     {
         NES_INFO("TAKAITAKAI")
-        NES_INFO_EXEC("WAWA");
+        NES_INFO_EXEC("ALL GOOD");
     }
-    else if (DictVar::dict  == 0)
+    else if (lala.getInserted()  >  2)
     {
         NES_INFO("FAAAAAAAA")
-        NES_INFO_EXEC("DADA");
+        NES_INFO_EXEC("MANY SMTH");
     }
     else
     {

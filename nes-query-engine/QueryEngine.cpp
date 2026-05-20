@@ -55,6 +55,8 @@
 #include <TaskQueue.hpp>
 #include <Thread.hpp>
 
+#include "QueryDict.hpp"
+
 namespace NES
 {
 
@@ -210,8 +212,7 @@ struct DefaultPEC final : PipelineExecutionContext
     size_t numberOfThreads;
     WorkerThreadId threadId;
     PipelineId pipelineId;
-    void* dictionaryBufferPtr;
-    void* dictMapBufferPtr;
+    QueryDict* queryDict;
 
 #ifndef NO_ASSERT
     bool wasRepeated = false;
@@ -224,16 +225,14 @@ struct DefaultPEC final : PipelineExecutionContext
         std::shared_ptr<AbstractBufferProvider> bm,
         std::function<bool(const TupleBuffer& tb, ContinuationPolicy)> handler,
         std::function<void(const TupleBuffer& tb, std::chrono::milliseconds)> repeatHandler,
-        void* dictPtr,
-        void* dictMapPtr)
+        QueryDict* queryDict)
         : handler(std::move(handler))
         , repeatHandler(std::move(repeatHandler))
         , bm(std::move(bm))
         , numberOfThreads(numberOfThreads)
         , threadId(threadId)
         , pipelineId(pipelineId)
-        , dictionaryBufferPtr(dictPtr)
-        , dictMapBufferPtr(dictMapPtr)
+        , queryDict(queryDict)
     {
     }
 
@@ -283,14 +282,9 @@ struct DefaultPEC final : PipelineExecutionContext
         return pipelineId;
     }
 
-    [[nodiscard]] void* getDictionaryPtr() const override
+    [[nodiscard]] QueryDict* getQueryDict() const override
     {
-        return dictionaryBufferPtr;
-    }
-
-    [[nodiscard]] void* getDictMapPtr() const override
-    {
-        return dictMapBufferPtr;
+        return queryDict;
     }
 
     std::unordered_map<OperatorHandlerId, std::shared_ptr<OperatorHandler>>& getOperatorHandlers() override
@@ -416,17 +410,15 @@ public:
         std::shared_ptr<AbstractQueryStatusListener> listener,
         std::shared_ptr<QueryEngineStatisticListener> stats,
         std::shared_ptr<AbstractBufferProvider> bufferProvider,
-        const size_t admissionQueueSize,
-        void* dictionaryBufferPtr,
-        void* dictMapBufferPtr)
+        const size_t admissionQueueSize)
         : listener(std::move(listener))
         , statistic(std::move(stats))
         , bufferProvider(std::move(bufferProvider))
-        , dictionaryBufferPtr(dictionaryBufferPtr)
-        , dictMapBufferPtr(dictMapBufferPtr)
         , taskQueue(admissionQueueSize)
         , delayedTaskSubmitter([this](Task&& task) noexcept { taskQueue.addInternalTaskNonBlocking(std::move(task)); })
     {
+        dictionaryStruct = std::make_shared<QueryDict>();
+        dictionaryStruct->init(this->bufferProvider);
     }
 
     /// Reserves the initial WorkerThreadId for the terminator thread, which is the thread which is calling shutdown.
@@ -469,8 +461,7 @@ private:
     std::shared_ptr<AbstractQueryStatusListener> listener;
     std::shared_ptr<QueryEngineStatisticListener> statistic;
     std::shared_ptr<AbstractBufferProvider> bufferProvider;
-    void* dictionaryBufferPtr{};
-    void* dictMapBufferPtr{};
+    std::shared_ptr<QueryDict> dictionaryStruct;
     std::atomic<TaskId::Underlying> taskIdCounter;
 
     TaskQueue<Task> taskQueue;
@@ -534,8 +525,7 @@ bool ThreadPool::WorkerThread::operator()(WorkTask& task) const
                 bool formattingTask = pipeline.get()->stage->formattingTask;
                 pool.statistic->onEvent(TaskEmit{id, task.queryId, pipeline->id, pipeline->id, taskId, tupleBuffer.getNumberOfTuples(), formattingTask});
             },
-            pool.dictionaryBufferPtr,
-            pool.dictMapBufferPtr
+            pool.dictionaryStruct.get()
         );
         pool.statistic->onEvent(TaskExecutionStart{WorkerThread::id, task.queryId, pipeline->id, taskId, task.buf.getNumberOfTuples()});
         pipeline->stage->execute(task.buf, pec);
@@ -560,8 +550,6 @@ bool ThreadPool::WorkerThread::operator()(StartPipelineTask& startPipeline) cons
 
     if (auto pipeline = startPipeline.pipeline.lock())
     {
-        assert(pool.dictionaryBufferPtr != nullptr);
-        assert(pool.dictMapBufferPtr != nullptr);
         ENGINE_LOG_DEBUG("Setup Pipeline Task for {}-{}", startPipeline.queryId, pipeline->id);
         DefaultPEC pec(
             pool.numberOfThreads(),
@@ -584,8 +572,7 @@ bool ThreadPool::WorkerThread::operator()(StartPipelineTask& startPipeline) cons
                     "Repeat pipeline setup is currently not supported. Although there is no inherit reason this wouldn't work, but its not "
                     "tested");
             },
-            pool.dictionaryBufferPtr,
-            pool.dictMapBufferPtr);
+            pool.dictionaryStruct.get());
         pipeline->stage->start(pec);
         pool.statistic->onEvent(PipelineStart{WorkerThread::id, startPipeline.queryId, pipeline->id});
         return true;
@@ -678,8 +665,7 @@ bool ThreadPool::WorkerThread::operator()(StopPipelineTask& stopPipelineTask) co
                 pool.addInternalTask(std::move(repeatedTask));
             }
         },
-        pool.dictionaryBufferPtr,
-        pool.dictMapBufferPtr);
+        pool.dictionaryStruct.get());
 
     ENGINE_LOG_DEBUG("Stopping Pipeline {}-{}", stopPipelineTask.queryId, stopPipelineTask.pipeline->id);
     auto pipelineId = stopPipelineTask.pipeline->id;
@@ -800,35 +786,8 @@ QueryEngine::QueryEngine(
     , queryCatalog(std::make_shared<QueryCatalog>())
     , workerId(workerId)
 {
-    if (auto unpooledDict = bufferManager->getUnpooledBuffer(1024*1024))
-    {
-        dictionaryBuffer = std::make_unique<TupleBuffer>(std::move(*unpooledDict));
-    }
-    else
-    {
-        throw BufferAllocationFailure("Failed to allocate dictionary buffer for Query Engine.");
-    }
 
-    size_t A = 512 * 1024;     // Alignment: 512KB
-    size_t S = 512 * 1024;     // Target Size: 512KB
-    size_t EXTRA = 256 * 1024; // Extra needed: 256KB
-
-    char* raw_mem = (char*)dictionaryBuffer->getAvailableMemoryArea().data();
-    uintptr_t raw_addr = (uintptr_t)raw_mem;
-    uintptr_t aligned_addr = (raw_addr + A - 1) & ~(A - 1);
-    uint8_t* aligned_mem = (uint8_t*)aligned_addr;
-
-    size_t prefix_size = (size_t)(aligned_addr - raw_addr);
-
-    uint8_t* extra_mem = nullptr;
-
-    if (prefix_size >= EXTRA) {
-        extra_mem = aligned_mem - EXTRA;
-    } else {
-        extra_mem = aligned_mem + S;
-    }
-
-    threadPool = std::make_unique<ThreadPool>(statusListener, statisticListener, bufferManager, config.admissionQueueSize.getValue(), aligned_mem, extra_mem);
+    threadPool = std::make_unique<ThreadPool>(statusListener, statisticListener, bufferManager, config.admissionQueueSize.getValue());
     for (size_t i = 0; i < config.numberOfWorkerThreads.getValue(); ++i)
     {
         threadPool->addThread(workerId);

@@ -28,8 +28,7 @@ add_source_files(nes-physical-operators
         WindowBasedOperatorHandler.cpp
         WindowBuildPhysicalOperator.cpp
         WindowProbePhysicalOperator.cpp
-        DictionaryScanPhysicalOperator.cpp
-        DictionaryHandler.cpp)
+        DictionaryScanPhysicalOperator.cpp)
 
 add_subdirectory(Aggregation)
 add_subdirectory(Watermark)
