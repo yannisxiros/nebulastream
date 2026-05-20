@@ -14,6 +14,8 @@
 
 #pragma once
 #include <cstdint>
+#include <string>
+#include <vector>
 
 #include "Nautilus/Interface/Hash/HashFunction.hpp"
 #include "Nautilus/Interface/Hash/MurMur3HashFunction.hpp"
@@ -37,7 +39,11 @@ struct QueryDict
     int8_t* dictDataPtr;
     uint32_t* dictMapPtr;
     uint32_t dictSize = 0, insNum = 0;
+    std::vector<std::string> constantStrings;
 
+
+    int8_t* insertRaw(int8_t* data, uint64_t size, uint64_t hash);
+    void insertConstantStrings();
 
     void init(std::shared_ptr<AbstractBufferProvider> bufferManager)
     {

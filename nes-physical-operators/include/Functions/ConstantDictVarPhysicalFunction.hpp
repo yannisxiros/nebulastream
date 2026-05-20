@@ -17,6 +17,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <vector>
 #include <Functions/PhysicalFunction.hpp>
 #include <Nautilus/DataTypes/VarVal.hpp>
@@ -33,6 +34,10 @@ class ConstantDictVarPhysicalFunction final
 public:
     explicit ConstantDictVarPhysicalFunction(const int8_t* value, size_t size);
     [[nodiscard]] VarVal execute(const Record& record, ArenaRef& arena) const;
+    [[nodiscard]] std::string getString() const
+    {
+        return std::string(reinterpret_cast<const char*>(data.data()), data.size());
+    }
 
 private:
     std::vector<int8_t> data;

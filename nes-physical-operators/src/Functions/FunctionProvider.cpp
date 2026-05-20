@@ -35,6 +35,19 @@
 
 namespace NES::QueryCompilation
 {
+
+thread_local std::vector<std::string>* FunctionProvider::activeCollector = nullptr;
+
+void FunctionProvider::beginConstantCollection(std::vector<std::string>& out)
+{
+    activeCollector = &out;
+}
+
+void FunctionProvider::endConstantCollection()
+{
+    activeCollector = nullptr;
+}
+
 PhysicalFunction FunctionProvider::lowerFunction(LogicalFunction logicalFunction)
 {
     /// 1. Recursively lower the children of the function node.
@@ -112,6 +125,8 @@ PhysicalFunction FunctionProvider::lowerConstantFunction(const ConstantValueLogi
         case DataType::Type::CHAR:
             return ConstantCharValueFunction(parseConstantValue<char>(stringValue));
         case DataType::Type::DICTIONARY:
+            if (activeCollector)
+                activeCollector->push_back(stringValue);
             return ConstantDictVarPhysicalFunction(std::bit_cast<const int8_t*>(stringValue.c_str()), stringValue.size());
         case DataType::Type::FLINK:
         case DataType::Type::GERMAN_VARSIZED:

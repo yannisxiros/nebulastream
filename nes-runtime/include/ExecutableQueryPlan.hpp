@@ -15,6 +15,7 @@
 #pragma once
 #include <memory>
 #include <ostream>
+#include <string>
 #include <utility>
 #include <vector>
 #include <Identifiers/Identifiers.hpp>
@@ -34,11 +35,15 @@ struct ExecutableQueryPlan
     static std::unique_ptr<ExecutableQueryPlan> instantiate(CompiledQueryPlan& compiledQueryPlan, const SourceProvider& sourceProvider);
 
     ExecutableQueryPlan(
-        QueryId queryId, std::vector<std::shared_ptr<ExecutablePipeline>> pipelines, std::vector<SourceWithSuccessor> instantiatedSources);
+        QueryId queryId,
+        std::vector<std::shared_ptr<ExecutablePipeline>> pipelines,
+        std::vector<SourceWithSuccessor> instantiatedSources,
+        std::vector<std::string> constantStrings);
 
     QueryId queryId;
     std::vector<std::shared_ptr<ExecutablePipeline>> pipelines;
     std::vector<SourceWithSuccessor> sources;
+    std::vector<std::string> constantStrings;
     friend std::ostream& operator<<(std::ostream& os, const ExecutableQueryPlan& executableQueryPlan);
 };
 }

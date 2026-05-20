@@ -98,12 +98,22 @@ ExecutableQueryPlan::instantiate(CompiledQueryPlan& compiledQueryPlan, const Sou
     }
 
 
-    return std::make_unique<ExecutableQueryPlan>(compiledQueryPlan.queryId, compiledQueryPlan.pipelines, std::move(instantiatedSources));
+    return std::make_unique<ExecutableQueryPlan>(
+        compiledQueryPlan.queryId,
+        compiledQueryPlan.pipelines,
+        std::move(instantiatedSources),
+        std::move(compiledQueryPlan.constantStrings));
 }
 
 ExecutableQueryPlan::ExecutableQueryPlan(
-    QueryId queryId, std::vector<std::shared_ptr<ExecutablePipeline>> pipelines, std::vector<SourceWithSuccessor> instantiatedSources)
-    : queryId(queryId), pipelines(std::move(pipelines)), sources(std::move(instantiatedSources))
+    QueryId queryId,
+    std::vector<std::shared_ptr<ExecutablePipeline>> pipelines,
+    std::vector<SourceWithSuccessor> instantiatedSources,
+    std::vector<std::string> constantStrings)
+    : queryId(queryId)
+    , pipelines(std::move(pipelines))
+    , sources(std::move(instantiatedSources))
+    , constantStrings(std::move(constantStrings))
 {
 }
 }

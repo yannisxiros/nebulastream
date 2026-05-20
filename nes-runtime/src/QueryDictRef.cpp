@@ -35,51 +35,7 @@ QueryDictRef::QueryDictRef(nautilus::val<QueryDict*> queryDict)  : queryDict(que
  */
 static int8_t* insertProxy(QueryDict* queryDict, int8_t* data, uint64_t size, uint64_t hash)
 {
-    if (queryDict->dictSize + size > QueryDict::data_region_cap)
-    {
-        return  data;
-    }
-
-    // Insert into dictionary
-    int8_t* dictEntryPtr = queryDict->dictDataPtr + queryDict->dictSize;
-
-
-    // Update hash map (simple linear probing for demonstration)
-    uint64_t index = hash % QueryDict::map_num_of_slots; // TODO optimize with &
-    auto mapPtr = queryDict->dictMapPtr;
-    for (auto hops = 0; hops < 3; hops++)
-    {
-        if (mapPtr[index] == 0) // Empty slot -> insert
-        {
-            std::memcpy(dictEntryPtr, data, size);
-            auto offset = queryDict->dictSize;
-            queryDict->dictSize += size + sizeof(hash);
-
-            //allocate slot
-            auto entry = hash & 0xFFFF;
-            entry |= offset << 16;
-            mapPtr[index] = entry;
-
-            //write down hash then string
-            std::memcpy(dictEntryPtr, &hash, sizeof(uint64_t));
-            std::memcpy(dictEntryPtr + sizeof(uint64_t), data, size * sizeof(int8_t*));
-            queryDict->insNum ++;
-            return dictEntryPtr + sizeof(uint64_t); //skip the hash
-        }
-        if ((mapPtr[index] & 0xFFFF) == (hash & 0xFFFF)) // Hash matches, check string
-        {
-            auto existingOffset = mapPtr[index] >> 16;
-            auto existingEntryPtr = queryDict->dictDataPtr + existingOffset;
-            auto existingHash = *reinterpret_cast<uint64_t*>(existingEntryPtr);
-            if (existingHash == hash && std::memcmp(existingEntryPtr + sizeof(uint64_t), data, size) == 0)  //TODO secure size check...
-            {
-                return existingEntryPtr + sizeof(uint64_t); // Found existing entry
-            }
-        }
-        index = (index + 1) % QueryDict::map_num_of_slots;
-    }
-
-    return data;
+    return queryDict->insertRaw(data, size, hash);
 }
 
 DictVar QueryDictRef::insert(VariableSizedData varData, HashFunction& hashFunction) const

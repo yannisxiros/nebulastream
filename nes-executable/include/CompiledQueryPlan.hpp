@@ -15,6 +15,7 @@
 #pragma once
 
 #include <memory>
+#include <string>
 #include <variant>
 #include <vector>
 #include <Identifiers/Identifiers.hpp>
@@ -67,5 +68,6 @@ struct CompiledQueryPlan
     std::vector<std::shared_ptr<ExecutablePipeline>> pipelines;
     std::vector<Sink> sinks;
     std::vector<Source> sources;
+    std::vector<std::string> constantStrings;
 };
 }

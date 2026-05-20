@@ -14,6 +14,8 @@
 
 #pragma once
 
+#include <string>
+#include <vector>
 #include <Functions/ConstantValueLogicalFunction.hpp>
 #include <Functions/LogicalFunction.hpp>
 #include <Functions/PhysicalFunction.hpp>
@@ -27,8 +29,16 @@ public:
     /// NodeFunction a NodeFunctionConstantValue, FieldAccessLogicalFunction or FieldAssignment
     static PhysicalFunction lowerFunction(LogicalFunction logicalFunction);
 
+    /// Activate per-thread collection of DICTIONARY constant strings into @p out.
+    /// Must be paired with endConstantCollection() on the same thread.
+    static void beginConstantCollection(std::vector<std::string>& out);
+    static void endConstantCollection();
+
 private:
     static PhysicalFunction lowerConstantFunction(const ConstantValueLogicalFunction& nodeFunction);
+
+    // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+    static thread_local std::vector<std::string>* activeCollector;
 };
 
 }

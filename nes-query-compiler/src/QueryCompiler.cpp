@@ -16,7 +16,9 @@
 #include <QueryCompiler.hpp>
 
 #include <memory>
+#include <vector>
 #include <Configuration/WorkerConfiguration.hpp>
+#include <Functions/FunctionProvider.hpp>
 #include <Phases/LowerToCompiledQueryPlanPhase.hpp>
 #include <Phases/LowerToPhysicalOperators.hpp>
 #include <Phases/PipeliningPhase.hpp>
@@ -31,8 +33,15 @@ namespace NES::QueryCompilation
 std::unique_ptr<CompiledQueryPlan> QueryCompiler::compileQuery(std::unique_ptr<QueryCompilationRequest> request)
 {
     auto lowerToCompiledQueryPlanPhase = LowerToCompiledQueryPlanPhase(request->dumpCompilationResult);
+
+    std::vector<std::string> collectedConstants;
+    FunctionProvider::beginConstantCollection(collectedConstants);
     auto queryPlan = LowerToPhysicalOperators::apply(request->queryPlan.getPlan(), defaultQueryExecution);
+    FunctionProvider::endConstantCollection();
+
     auto pipelinedQueryPlan = PipeliningPhase::apply(queryPlan);
-    return lowerToCompiledQueryPlanPhase.apply(pipelinedQueryPlan);
+    auto compiled = lowerToCompiledQueryPlanPhase.apply(pipelinedQueryPlan);
+    compiled->constantStrings = std::move(collectedConstants);
+    return compiled;
 }
 }
