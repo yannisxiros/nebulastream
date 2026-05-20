@@ -23,6 +23,7 @@
 #include <DataTypes/DataType.hpp>
 #include <Nautilus/DataTypes/DataTypesUtil.hpp>
 #include <Nautilus/DataTypes/VariableSizedData.hpp>
+#include <Nautilus/DataTypes/DictVar.hpp>
 #include <magic_enum/magic_enum.hpp>
 #include <nautilus/std/ostream.h>
 #include <nautilus/val.hpp>
@@ -66,9 +67,9 @@ void VarVal::writeToMemory(const nautilus::val<int8_t*>& memRef) const
     std::visit(
         [&]<typename ValType>(const ValType& val)
         {
-            if constexpr (std::is_same_v<ValType, VariableSizedData> || std::is_same_v<ValType, GermanVarsized>)
+            if constexpr (std::is_same_v<ValType, VariableSizedData> || std::is_same_v<ValType, DictVar> || std::is_same_v<ValType, GermanVarsized>)
             {
-                throw UnknownOperation(std::string("VarVal T::operation=(val) not implemented for VariableSizedData"));
+                throw UnknownOperation(std::string("VarVal T::operation=(val) not implemented for VariableSizedData or DictVar"));
             }
             else
             {

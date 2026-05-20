@@ -221,7 +221,7 @@ VarVal TupleBufferRef::storeValue(
         throw UnknownDataType("Physical Type: {} is currently not supported", physicalType);
     }
 
-    if (physicalType.type == DataType::Type::VARSIZED || physicalType.type == DataType::Type::FLINK || physicalType.type == DataType::Type::DICTIONARY)
+    if (physicalType.type == DataType::Type::VARSIZED || physicalType.type == DataType::Type::FLINK)
     {
         const auto varSizedValue = value.cast<VariableSizedData>();
         auto refToIndex = static_cast<nautilus::val<VariableSizedAccess*>>(fieldReference);
@@ -248,6 +248,35 @@ VarVal TupleBufferRef::storeValue(
         return value;
     }
 
+    if (physicalType.type == DataType::Type::DICTIONARY)
+    {
+        const auto varSizedValue = value.cast<DictVar>();
+        auto refToIndex = static_cast<nautilus::val<VariableSizedAccess*>>(fieldReference);
+
+        invoke(
+            +[](TupleBuffer* tupleBuffer,
+                AbstractBufferProvider* bufferProvider,
+                const int8_t* varSizedPtr,
+                const uint64_t varSizedValueLength,
+                VariableSizedAccess* refToIndex)
+            {
+                INVARIANT(tupleBuffer != nullptr, "Tuplebuffer MUST NOT be null at this point");
+                INVARIANT(bufferProvider != nullptr, "BufferProvider MUST NOT be null at this point");
+                const std::span varSizedValueSpan{varSizedPtr, varSizedPtr + varSizedValueLength};
+                const VariableSizedAccess writtenAccess = writeVarSized(*tupleBuffer, *bufferProvider, std::as_bytes(varSizedValueSpan));
+                *refToIndex = writtenAccess;
+            },
+            recordBuffer.getReference(),
+            bufferProvider,
+            varSizedValue.getContent(),
+            varSizedValue.getSize(),
+            refToIndex);
+
+        return value;
+    }
+
+
+    //GERMAN STRINGS
     if (value.isVarsized())
     {
         const auto varSizedValue = value.cast<VariableSizedData>();

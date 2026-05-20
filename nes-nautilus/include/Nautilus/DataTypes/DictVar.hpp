@@ -25,40 +25,41 @@ namespace NES
 {
 class GermanVarsized;
 
-/// Forward declaring the class here, so that we can declare the operator==(const VariableSizedData, const nautilus::val<bool>) for it
-class VariableSizedData;
-nautilus::val<bool> operator==(const VariableSizedData& varSizedData, const nautilus::val<bool>& other);
-nautilus::val<bool> operator==(const nautilus::val<bool>& other, const VariableSizedData& varSizedData);
+/// Forward declaring the class here, so that we can declare the operator==(const DictVar, const nautilus::val<bool>) for it
+class DictVar;
+nautilus::val<bool> operator==(const DictVar& varSizedData, const nautilus::val<bool>& other);
+nautilus::val<bool> operator==(const nautilus::val<bool>& other, const DictVar& varSizedData);
 
 /// We assume that the first 4 bytes of a int8_t* to any var sized data contains the length of the var sized data
 /// This class should not be used as standalone. Rather it should be used via the VarVal class
-class VariableSizedData
+class DictVar
 {
 public:
-    explicit VariableSizedData(const nautilus::val<int8_t*>& reference, const nautilus::val<uint64_t>& size);
-    VariableSizedData(const VariableSizedData& other) = default;
-    VariableSizedData& operator=(const VariableSizedData& other) noexcept;
-    VariableSizedData(VariableSizedData&& other) noexcept;
-    VariableSizedData& operator=(VariableSizedData&& other) noexcept;
+    explicit DictVar(const nautilus::val<int8_t*>& reference, const nautilus::val<uint64_t>& size);
+    DictVar(const DictVar& other) = default;
+    DictVar& operator=(const DictVar& other) noexcept;
+    DictVar(DictVar&& other) noexcept;
+    DictVar& operator=(DictVar&& other) noexcept;
 
     [[nodiscard]] nautilus::val<uint64_t> getSize() const;
     /// Returns the content of the variable sized data, this means the pointer to the actual variable sized data.
     [[nodiscard]] nautilus::val<int8_t*> getContent() const;
 
     /// Declaring friend for it, so that we can access the members in it and do not have to declare getters for it
-    friend nautilus::val<std::ostream>& operator<<(nautilus::val<std::ostream>& oss, const VariableSizedData& variableSizedData);
-    friend nautilus::val<bool> operator==(const VariableSizedData& varSizedData, const nautilus::val<bool>& other);
-    friend nautilus::val<bool> operator==(const nautilus::val<bool>& other, const VariableSizedData& varSizedData);
+    friend nautilus::val<std::ostream>& operator<<(nautilus::val<std::ostream>& oss, const DictVar& dictVar);
+    friend nautilus::val<bool> operator==(const DictVar& dictVar, const nautilus::val<bool>& other);
+    friend nautilus::val<bool> operator==(const nautilus::val<bool>& other, const DictVar& dictVar);
 
-    /// Performing an equality check between two VariableSizedData objects. Two VariableSizedData objects are equal if their size and
+    /// Performing an equality check between two DictVar objects. Two DictVar objects are equal if their size and
     /// content are byte-wise equal. To check the equality of the content, we compare the content byte-wise via a memcmp.
-    nautilus::val<bool> operator==(const VariableSizedData&) const;
-    nautilus::val<bool> operator!=(const VariableSizedData&) const;
+    nautilus::val<bool> operator==(const DictVar&) const;
+    nautilus::val<bool> operator!=(const DictVar&) const;
     nautilus::val<bool> operator==(const GermanVarsized&) const;
     nautilus::val<bool> operator!=(const GermanVarsized&) const;
     nautilus::val<bool> operator!() const;
     [[nodiscard]] nautilus::val<bool> isValid() const;
 
+    inline static nautilus::val<uint64_t> dict = 0;
 
 private:
     nautilus::val<uint64_t> size;

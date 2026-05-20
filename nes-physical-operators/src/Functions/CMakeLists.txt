@@ -14,6 +14,7 @@ add_source_files(nes-physical-operators
         FunctionProvider.cpp
         FieldAccessPhysicalFunction.cpp
         ConstantValueVariableSizePhysicalFunction.cpp
+        ConstantDictVarPhysicalFunction.cpp
         CastFieldPhysicalFunction.cpp
         )
 

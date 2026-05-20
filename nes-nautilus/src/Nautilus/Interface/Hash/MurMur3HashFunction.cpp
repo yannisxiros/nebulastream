@@ -123,7 +123,7 @@ HashFunction::HashValue MurMur3HashFunction::calculate(HashValue& hash, const Va
         .customVisit(
             [&]<typename T>(const T& val) -> VarVal
             {
-                if constexpr (std::is_same_v<T, VariableSizedData> || std::is_same_v<T, GermanVarsized>)
+                if constexpr (std::is_same_v<T, VariableSizedData> || std::is_same_v<T, GermanVarsized> || std::is_same_v<T, DictVar>)
                 {
                     const auto& varSizedContent = val;
                     return hash ^ nautilus::invoke(hashBytes, varSizedContent.getContent(), varSizedContent.getSize());

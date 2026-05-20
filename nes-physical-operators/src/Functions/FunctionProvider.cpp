@@ -24,6 +24,7 @@
 #include <Functions/ConstantValueLogicalFunction.hpp>
 #include <Functions/ConstantValuePhysicalFunction.hpp>
 #include <Functions/ConstantValueVariableSizePhysicalFunction.hpp>
+#include <Functions/ConstantDictVarPhysicalFunction.hpp>
 #include <Functions/FieldAccessLogicalFunction.hpp>
 #include <Functions/FieldAccessPhysicalFunction.hpp>
 #include <Functions/LogicalFunction.hpp>
@@ -111,6 +112,7 @@ PhysicalFunction FunctionProvider::lowerConstantFunction(const ConstantValueLogi
         case DataType::Type::CHAR:
             return ConstantCharValueFunction(parseConstantValue<char>(stringValue));
         case DataType::Type::DICTIONARY:
+            return ConstantDictVarPhysicalFunction(std::bit_cast<const int8_t*>(stringValue.c_str()), stringValue.size());
         case DataType::Type::FLINK:
         case DataType::Type::GERMAN_VARSIZED:
         case DataType::Type::VARSIZED: {

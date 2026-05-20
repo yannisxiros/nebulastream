@@ -83,6 +83,16 @@ bool Record::hasField(const RecordFieldIdentifier& fieldName) const
     return recordFields.contains(fieldName);
 }
 
+std::vector<Record::RecordFieldIdentifier> Record::getAllFieldIdentifiers() const
+{
+    std::vector<RecordFieldIdentifier> fieldIdentifiers;
+    for (const auto& [fieldIdentifier, _] : recordFields)
+    {
+        fieldIdentifiers.push_back(fieldIdentifier);
+    }
+    return fieldIdentifiers;
+}
+
 nautilus::val<bool> operator==(const Record& lhs, const Record& rhs)
 {
     if (lhs.recordFields.size() != rhs.recordFields.size())

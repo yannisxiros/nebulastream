@@ -14,4 +14,5 @@ add_source_files(nes-nautilus
         VariableSizedData.cpp
         GermanVarsized.cpp
         VarVal.cpp
+        DictVar.cpp
 )

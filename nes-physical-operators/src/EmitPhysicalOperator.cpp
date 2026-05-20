@@ -19,6 +19,7 @@
 #include <memory>
 #include <optional>
 #include <utility>
+
 #include <Identifiers/Identifiers.hpp>
 #include <Nautilus/Interface/BufferRef/TupleBufferRef.hpp>
 #include <Nautilus/Interface/NESStrongTypeRef.hpp>
@@ -34,6 +35,8 @@
 #include <PhysicalOperator.hpp>
 #include <function.hpp>
 #include <val_ptr.hpp>
+#include <Nautilus/Util.hpp>
+#include <Nautilus/DataTypes/DataTypesUtil.hpp>
 
 namespace NES
 {
@@ -114,6 +117,25 @@ void setChunkNumber(
         isCurrentBufferTheLastChunk,
         newBuffer);
 }
+
+void logDictionaryCounter(const ExecutionContext& context)
+{
+    auto counterVal = readValueFromMemRef<uint64_t>(context.dictionaryPtr);
+    if (DictVar::dict  == 32)
+    {
+        NES_INFO("TAKAITAKAI")
+        NES_INFO_EXEC("WAWA");
+    }
+    else if (DictVar::dict  == 0)
+    {
+        NES_INFO("FAAAAAAAA")
+        NES_INFO_EXEC("DADA");
+    }
+    else
+    {
+        NES_INFO("NINI")
+    }
+}
 }
 
 void EmitPhysicalOperator::emitRecordBuffer(
@@ -129,6 +151,8 @@ void EmitPhysicalOperator::emitRecordBuffer(
     recordBuffer.setCreationTs(ctx.currentTs);
 
     setChunkNumber(ctx, operatorHandlerId, potentialLastChunk, ctx.chunkNumber, ctx.lastChunk, recordBuffer.getReference());
+
+    logDictionaryCounter(ctx);
 
     ctx.emitBuffer(recordBuffer);
 }

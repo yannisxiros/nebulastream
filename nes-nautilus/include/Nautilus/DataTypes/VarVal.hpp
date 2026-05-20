@@ -19,6 +19,7 @@
 #include <DataTypes/DataType.hpp>
 #include <Nautilus/DataTypes/GermanVarsized.hpp>
 #include <Nautilus/DataTypes/VariableSizedData.hpp>
+#include <Nautilus/DataTypes/DictVar.hpp>
 #include <Util/Logger/Logger.hpp>
 #include <nautilus/std/ostream.h>
 #include <nautilus/std/sstream.h>
@@ -34,7 +35,7 @@ namespace NES
 namespace detail
 {
 template <typename... T>
-using var_val_helper = std::variant<VariableSizedData, GermanVarsized, nautilus::val<T>...>;
+using var_val_helper = std::variant<VariableSizedData, DictVar, GermanVarsized, nautilus::val<T>...>;
 using var_val_t = var_val_helper<bool, uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t, float, double, char>;
 
 
@@ -91,6 +92,7 @@ public:
     friend nautilus::val<std::ostream>& operator<<(nautilus::val<std::ostream>& os, const VarVal& varVal);
 
     bool isVarsized() const { return std::holds_alternative<VariableSizedData>(value); }
+    bool isDictVar() const { return std::holds_alternative<DictVar>(value); }
     bool isGermanVarsized() const { return std::holds_alternative<GermanVarsized>(value); }
 
     /// Casts the underlying value to the given type T1. castToType() or cast<T>() should be the only way how the underlying value can be accessed.
@@ -108,9 +110,9 @@ public:
             {
                 using removedCVRefT0 = std::remove_cvref_t<T0>;
                 using removedCVRefT1 = std::remove_cvref_t<T1>;
-                if constexpr (std::is_same_v<removedCVRefT0, VariableSizedData> || std::is_same_v<removedCVRefT1, VariableSizedData> || std::is_same_v<removedCVRefT0, GermanVarsized> || std::is_same_v<removedCVRefT1, GermanVarsized>)
+                if constexpr (std::is_same_v<removedCVRefT0, VariableSizedData> || std::is_same_v<removedCVRefT1, VariableSizedData> || std::is_same_v<removedCVRefT0, DictVar> || std::is_same_v<removedCVRefT1, DictVar> || std::is_same_v<removedCVRefT0, GermanVarsized> || std::is_same_v<removedCVRefT1, GermanVarsized>)
                 {
-                    throw UnknownOperation("Cannot cast VariableSizedData to anything else.");
+                    throw UnknownOperation("Cannot cast VariableSizedData or DictVar to anything else.");
                 }
                 else
                 {
@@ -165,8 +167,10 @@ static_assert(std::is_constructible_v<VarVal, int32_t>, "Should be constructible
 static_assert(std::is_constructible_v<VarVal, nautilus::val<uint32_t>>, "Should be constructible from nautilus::val<uint32_t>");
 static_assert(std::is_convertible_v<nautilus::val<uint32_t>, VarVal>, "Should allow conversion from nautilus::val<uint32_t> to VarVal");
 static_assert(std::is_constructible_v<VarVal, VariableSizedData>, "Should be constructible from VariableSizedData");
+static_assert(std::is_constructible_v<VarVal, DictVar>, "Should be constructible from DictVar");
 static_assert(std::is_constructible_v<VarVal, GermanVarsized>, "Should be constructible from GermanVarsized");
 static_assert(std::is_convertible_v<VariableSizedData, VarVal>, "Should allow conversion from VariableSizedData to VarVal");
+static_assert(std::is_convertible_v<DictVar, VarVal>, "Should allow conversion from DictVar to VarVal");
 static_assert(std::is_convertible_v<GermanVarsized, VarVal>, "Should allow conversion from GermanVarsized to VarVal");
 static_assert(!std::is_convertible_v<int32_t, VarVal>, "Should not allow conversion from underlying to VarVal");
 
