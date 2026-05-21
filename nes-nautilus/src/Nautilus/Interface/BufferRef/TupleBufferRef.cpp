@@ -28,6 +28,8 @@
 #include <DataTypes/DataType.hpp>
 #include <DataTypes/Schema.hpp>
 #include <Nautilus/DataTypes/DataTypesUtil.hpp>
+#include <Nautilus/DataTypes/DictVar.hpp>
+#include <Nautilus/DataTypes/DictVar.hpp>
 #include <Nautilus/DataTypes/GermanVarsized.hpp>
 #include <Nautilus/DataTypes/VarVal.hpp>
 #include <Nautilus/DataTypes/VariableSizedData.hpp>
@@ -187,6 +189,42 @@ TupleBufferRef::loadValue(const DataType& physicalType, const RecordBuffer& reco
         return GermanVarsized(fieldReference);
     }
 
+    if (physicalType.type == DataType::Type::DICTIONARY)
+    {
+        auto variableSizedAccess = static_cast<nautilus::val<VariableSizedAccess*>>(fieldReference);
+        const auto rawIndex = nautilus::invoke(
+            +[](const VariableSizedAccess* vsa) { return vsa->getIndex().getRawIndex(); },
+            variableSizedAccess);
+        if (rawIndex == nautilus::val<uint32_t>(std::numeric_limits<uint32_t>::max()))
+        {
+            // In-region: slot number in offset field — reconstruct pointer from QueryDict base
+            const auto slotNum = nautilus::invoke(
+                +[](const VariableSizedAccess* vsa) { return vsa->getOffset().getRawOffset(); },
+                variableSizedAccess);
+            const nautilus::val<uint64_t> size =
+                *getMemberWithOffset<uint64_t>(variableSizedAccess, offsetof(VariableSizedAccess, size));
+            const auto dictBase = nautilus::val<int8_t*>(DictVar::dictAddr);
+            const auto ptr = dictBase + nautilus::val<uint64_t>(slotNum) * nautilus::val<uint64_t>(8);
+            return DictVar(ptr, size);
+        }
+        else
+        {
+            // Not in region: standard child-buffer read
+            const auto varSizedPtr = invoke(
+                +[](const TupleBuffer* tupleBuffer, const VariableSizedAccess* acc)
+                {
+                    INVARIANT(tupleBuffer != nullptr, "Tuplebuffer MUST NOT be null at this point");
+                    INVARIANT(acc != nullptr, "VariableSizedAccess MUST NOT be null at this point");
+                    return loadAssociatedVarSizedValue(*tupleBuffer, *acc).data();
+                },
+                recordBuffer.getReference(),
+                variableSizedAccess);
+            const nautilus::val<uint64_t> size =
+                *getMemberWithOffset<uint64_t>(variableSizedAccess, offsetof(VariableSizedAccess, size));
+            return DictVar(varSizedPtr, size);
+        }
+    }
+
     auto variableSizedAccess = static_cast<nautilus::val<VariableSizedAccess*>>(fieldReference);
 
     const auto varSizedPtr = invoke(
@@ -250,28 +288,50 @@ VarVal TupleBufferRef::storeValue(
 
     if (physicalType.type == DataType::Type::DICTIONARY)
     {
-        const auto varSizedValue = value.cast<DictVar>();
+        const auto dictVarValue = value.cast<DictVar>();
         auto refToIndex = static_cast<nautilus::val<VariableSizedAccess*>>(fieldReference);
 
-        invoke(
-            +[](TupleBuffer* tupleBuffer,
-                AbstractBufferProvider* bufferProvider,
-                const int8_t* varSizedPtr,
-                const uint64_t varSizedValueLength,
-                VariableSizedAccess* refToIndex)
-            {
-                INVARIANT(tupleBuffer != nullptr, "Tuplebuffer MUST NOT be null at this point");
-                INVARIANT(bufferProvider != nullptr, "BufferProvider MUST NOT be null at this point");
-                const std::span varSizedValueSpan{varSizedPtr, varSizedPtr + varSizedValueLength};
-                const VariableSizedAccess writtenAccess = writeVarSized(*tupleBuffer, *bufferProvider, std::as_bytes(varSizedValueSpan));
-                *refToIndex = writtenAccess;
-            },
-            recordBuffer.getReference(),
-            bufferProvider,
-            varSizedValue.getContent(),
-            varSizedValue.getSize(),
-            refToIndex);
-
+        if (dictVarValue.inRegion())
+        {
+            // In-region: encode position as slot number, sentinel index = UINT32_MAX
+            invoke(
+                +[](VariableSizedAccess* vsa, const int8_t* content, uint64_t size)
+                {
+                    const uint32_t slotNum =
+                        static_cast<uint32_t>((reinterpret_cast<uint64_t>(content) >> 3) & 65535u);
+                    *vsa = VariableSizedAccess{
+                        VariableSizedAccess::Index{std::numeric_limits<uint32_t>::max()},
+                        VariableSizedAccess::Offset{slotNum},
+                        VariableSizedAccess::Size{size}
+                    };
+                },
+                refToIndex,
+                dictVarValue.getContent(),
+                dictVarValue.getSize());
+                return dictVarValue;
+        }
+        else
+        {
+            // Not in region: copy to child buffer, same as VARSIZED
+            invoke(
+                +[](TupleBuffer* tupleBuffer,
+                    AbstractBufferProvider* bufferProvider,
+                    const int8_t* varSizedPtr,
+                    const uint64_t varSizedValueLength,
+                    VariableSizedAccess* refToIndex)
+                {
+                    INVARIANT(tupleBuffer != nullptr, "Tuplebuffer MUST NOT be null at this point");
+                    INVARIANT(bufferProvider != nullptr, "BufferProvider MUST NOT be null at this point");
+                    const std::span varSizedValueSpan{varSizedPtr, varSizedPtr + varSizedValueLength};
+                    *refToIndex =
+                        writeVarSized(*tupleBuffer, *bufferProvider, std::as_bytes(varSizedValueSpan));
+                },
+                recordBuffer.getReference(),
+                bufferProvider,
+                dictVarValue.getContent(),
+                dictVarValue.getSize(),
+                refToIndex);
+        }
         return value;
     }
 

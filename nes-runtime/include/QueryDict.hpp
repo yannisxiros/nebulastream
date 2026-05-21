@@ -78,7 +78,7 @@ struct QueryDict
 
         dictDataPtr = aligned_mem;
         dictMapPtr = (uint32_t*)extra_mem;
-        DictVar::dictAddr = (uint64_t)aligned_mem;
+        DictVar::dictAddr = aligned_mem;
     }
 };
 

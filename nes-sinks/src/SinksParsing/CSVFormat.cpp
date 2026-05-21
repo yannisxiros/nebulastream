@@ -16,12 +16,14 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <ostream>
 #include <ranges>
 #include <span>
 #include <sstream>
 #include <string>
 #include <DataTypes/Schema.hpp>
+#include <Nautilus/DataTypes/DictVar.hpp>
 #include <Runtime/TupleBuffer.hpp>
 #include <Runtime/VariableSizedAccess.hpp>
 #include <Runtime/StringEntry.hpp>
@@ -70,25 +72,22 @@ std::string CSVFormat::tupleBufferToFormattedCSVString(TupleBuffer tbuffer, cons
         auto fields
             = std::views::iota(static_cast<size_t>(0), formattingContext.offsets.size())
             | std::views::transform(
-                  [&formattingContext, &tuple, &tbuffer, copyOfEscapeStrings = escapeStrings, &i](const auto& index)
+                  [&formattingContext, &tuple, &tbuffer, copyOfEscapeStrings = escapeStrings, &i](const auto& fieldIdx)
                   {
-                      const auto physicalType = formattingContext.physicalTypes[index];
-                      if (physicalType.type == DataType::Type::FLINK || physicalType.type == DataType::Type::VARSIZED || physicalType.type == DataType::Type::DICTIONARY)
+                      const auto physicalType = formattingContext.physicalTypes[fieldIdx];
+                      if (physicalType.type == DataType::Type::FLINK || physicalType.type == DataType::Type::VARSIZED)
                       {
-                          const auto base = formattingContext.offsets[index];
-                          uint64_t index{};
+                          const auto base = formattingContext.offsets[fieldIdx];
+                          uint64_t childIndex{};
                           uint64_t offset{};
                           uint64_t size{};
-                          auto indexAddress = &tuple[base + offsetof(VariableSizedAccess, index)];
-                          auto offsetAddress = &tuple[base + offsetof(VariableSizedAccess, offset)];
-                          auto sizeAddress = &tuple[base + offsetof(VariableSizedAccess, size)];
-                          std::memcpy(&index, indexAddress, sizeof(uint32_t));
-                          std::memcpy(&offset, offsetAddress, sizeof(uint32_t));
-                          std::memcpy(&size, sizeAddress, sizeof(uint64_t));
-                          const VariableSizedAccess variableSizedAccess{VariableSizedAccess{
-                              VariableSizedAccess::Index(index), VariableSizedAccess::Offset(offset), VariableSizedAccess::Size(size)}};
+                          std::memcpy(&childIndex, &tuple[base + offsetof(VariableSizedAccess, index)], sizeof(uint32_t));
+                          std::memcpy(&offset, &tuple[base + offsetof(VariableSizedAccess, offset)], sizeof(uint32_t));
+                          std::memcpy(&size, &tuple[base + offsetof(VariableSizedAccess, size)], sizeof(uint64_t));
+                          const VariableSizedAccess variableSizedAccess{
+                              VariableSizedAccess::Index(childIndex), VariableSizedAccess::Offset(offset), VariableSizedAccess::Size(size)};
                           auto varSizedData = readVarSizedDataAsString(tbuffer, variableSizedAccess);
-                          if (index == -1U)
+                          if (childIndex == static_cast<uint64_t>(-1U))
                           {
                               i += size;
                           }
@@ -98,23 +97,47 @@ std::string CSVFormat::tupleBufferToFormattedCSVString(TupleBuffer tbuffer, cons
                           }
                           return varSizedData;
                       }
+                      if (physicalType.type == DataType::Type::DICTIONARY)
+                      {
+                          const auto base = formattingContext.offsets[fieldIdx];
+                          const auto* vsa = std::bit_cast<const VariableSizedAccess*>(&tuple[base]);
+                          const auto rawIndex = vsa->getIndex().getRawIndex();
+                          const auto size = vsa->getSize().getRawSize();
+                          std::string varSizedData;
+                          if (rawIndex == std::numeric_limits<uint32_t>::max())
+                          {
+                              // In-region: slot number encodes position inside QueryDict data area
+                              const uint32_t slotNum = vsa->getOffset().getRawOffset();
+                              const auto* ptr = reinterpret_cast<const char*>(DictVar::dictAddr + static_cast<uint64_t>(slotNum) * 8);
+                              varSizedData = std::string(ptr, size);
+                          }
+                          else
+                          {
+                              // Not in-region: stored in a child buffer, same path as VARSIZED
+                              varSizedData = readVarSizedDataAsString(tbuffer, VariableSizedAccess{
+                                  VariableSizedAccess::Index(rawIndex), vsa->getOffset(), VariableSizedAccess::Size(size)});
+                          }
+                          if (copyOfEscapeStrings)
+                          {
+                              return "\"" + varSizedData + "\"";
+                          }
+                          return varSizedData;
+                      }
                       if (physicalType.type == DataType::Type::GERMAN_VARSIZED)
                       {
-                          const StringEntry* variableSizedAccess =
-                                      std::bit_cast<const StringEntry*>(&tuple[formattingContext.offsets[index]]);
-                                  std::string varSizedData;
-                                  if (variableSizedAccess->size <= inlineBufSize)
-                                      varSizedData = std::string(reinterpret_cast<char const*>(&variableSizedAccess->prefix), variableSizedAccess->size);
-                                  else
-                                      varSizedData = std::string(reinterpret_cast<char const*>(variableSizedAccess->ptr), variableSizedAccess->size);
-                                  if (copyOfEscapeStrings)
-                                  {
-                                      return "\"" + varSizedData + "\"";
-                                  }
-                                  return varSizedData;
-
+                          const StringEntry* entry = std::bit_cast<const StringEntry*>(&tuple[formattingContext.offsets[fieldIdx]]);
+                          std::string varSizedData;
+                          if (entry->size <= inlineBufSize)
+                              varSizedData = std::string(reinterpret_cast<const char*>(&entry->prefix), entry->size);
+                          else
+                              varSizedData = std::string(reinterpret_cast<const char*>(entry->ptr), entry->size);
+                          if (copyOfEscapeStrings)
+                          {
+                              return "\"" + varSizedData + "\"";
+                          }
+                          return varSizedData;
                       }
-                      return physicalType.formattedBytesToString(&tuple[formattingContext.offsets[index]]);
+                      return physicalType.formattedBytesToString(&tuple[formattingContext.offsets[fieldIdx]]);
                   });
         ss << fmt::format("{}\n", fmt::join(fields, ","));
     }

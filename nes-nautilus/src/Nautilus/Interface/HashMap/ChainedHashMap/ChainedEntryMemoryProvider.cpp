@@ -22,6 +22,7 @@
 
 #include <DataTypes/Schema.hpp>
 #include <Nautilus/DataTypes/DataTypesUtil.hpp>
+#include <Nautilus/DataTypes/DictVar.hpp>
 #include <Nautilus/DataTypes/VarVal.hpp>
 #include <Nautilus/DataTypes/VariableSizedData.hpp>
 #include <Nautilus/Interface/HashMap/ChainedHashMap/ChainedHashMap.hpp>
@@ -96,6 +97,27 @@ VarVal ChainedEntryMemoryProvider::readVarVal(
                 const auto varSizedPayloadPtr = varSizedDataPtr + payloadOffset;
                 VariableSizedData varSizedData(varSizedPayloadPtr, sizeOfVarSized);
                 return varSizedData;
+            }
+            if (type.isType(DataType::Type::DICTIONARY))
+            {
+                const auto storedPtr
+                    = nautilus::invoke(+[](const int8_t** memoryAddressInEntry) { return *memoryAddressInEntry; }, memoryAddress);
+                const DictVar tempForCheck(storedPtr, nautilus::val<uint64_t>(0));
+                if (tempForCheck.inRegion())
+                {
+                    // In-region layout: [int8_t* content_ptr (8)][uint64_t size (8)]
+                    const auto sizeSlot = memoryAddress + nautilus::val<uint64_t>(sizeof(int8_t*));
+                    const auto size = readValueFromMemRef<uint64_t>(sizeSlot);
+                    return DictVar(storedPtr, size);
+                }
+                else
+                {
+                    // Copied layout (storeVarSized): [uint32_t size (4)][content...]
+                    const auto sizeOfVarSized = readValueFromMemRef<uint32_t>(storedPtr);
+                    const auto payloadOffset = nautilus::val<uint32_t>(sizeof(uint32_t));
+                    const auto varSizedPayloadPtr = storedPtr + payloadOffset;
+                    return DictVar(varSizedPayloadPtr, nautilus::val<uint64_t>(sizeOfVarSized));
+                }
             }
 
             const auto varVal = VarVal::readVarValFromMemory(memoryAddress, type.type);
@@ -206,6 +228,33 @@ void storeVarSized(
         variableSizedData.getContent(),
         variableSizedData.getSize());
 }
+
+void storeDictVar(
+    const nautilus::val<ChainedHashMap*>& hashMapRef,
+    const nautilus::val<AbstractBufferProvider*>& bufferProviderRef,
+    const nautilus::val<int8_t*>& memoryAddress,
+    const DictVar& dictVar)
+{
+    if (dictVar.inRegion())
+    {
+        // Content lives in the persistent QueryDict region — store pointer + size inline, no copy needed.
+        // Entry layout: [int8_t* content_ptr (8)][uint64_t size (8)]
+        nautilus::invoke(
+            +[](int8_t* entrySlot, const int8_t* content, uint64_t size)
+            {
+                *reinterpret_cast<const int8_t**>(entrySlot) = content;
+                *reinterpret_cast<uint64_t*>(entrySlot + sizeof(int8_t*)) = size;
+            },
+            memoryAddress,
+            dictVar.getContent(),
+            dictVar.getSize());
+    }
+    else
+    {
+        VariableSizedData varSizedData(dictVar.getContent(), dictVar.getSize());
+        storeVarSized(hashMapRef, bufferProviderRef, memoryAddress, varSizedData);
+    }
+}
 }
 
 void ChainedEntryMemoryProvider::writeRecord(
@@ -230,6 +279,10 @@ void ChainedEntryMemoryProvider::writeRecord(
         {
             auto varSizedValue = value.cast<VariableSizedData>();
             storeVarSized(hashMapRef, bufferProvider, memoryAddress, varSizedValue);
+        }
+        else if (type.isType(DataType::Type::DICTIONARY))
+        {
+            storeDictVar(hashMapRef, bufferProvider, memoryAddress, value.cast<DictVar>());
         }
         else
         {
@@ -258,6 +311,10 @@ void ChainedEntryMemoryProvider::writeEntryRef(
         {
             auto varSizedValue = value.cast<VariableSizedData>();
             storeVarSized(hashMapRef, bufferProvider, memoryAddress, varSizedValue);
+        }
+        else if (type.isType(DataType::Type::DICTIONARY))
+        {
+            storeDictVar(hashMapRef, bufferProvider, memoryAddress, value.cast<DictVar>());
         }
         else
         {

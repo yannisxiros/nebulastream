@@ -42,6 +42,9 @@ nes-asp/data/*.csv
 # Ignore log files
 *.log
 *.undo
+# pictures
+*.svg
+*.png
 
 scripts/__pycache__
 .ccache

@@ -88,10 +88,14 @@ nautilus::val<bool> DictVar::operator==(const DictVar& rhs) const
     {
         return {false};
     }
-    const auto varSizedData = getContent();
-    const auto rhsVarSizedData = rhs.getContent();
-    const auto compareResult = (nautilus::memcmp(varSizedData, rhsVarSizedData, size) == 0);
-    return {compareResult};
+    if (!this->inRegion() || !rhs.inRegion())   //if not in dict, normal check
+    {
+        const auto varSizedData = getContent();
+        const auto rhsVarSizedData = rhs.getContent();
+        const auto compareResult = (nautilus::memcmp(varSizedData, rhsVarSizedData, size) == 0);
+        return {compareResult};
+    }
+    return {ptrToVarSized == rhs.ptrToVarSized};
 }
 
 nautilus::val<bool> DictVar::operator==(const GermanVarsized& rhs) const
@@ -151,7 +155,7 @@ nautilus::val<bool> DictVar::operator!() const
 }
 nautilus::val<bool> DictVar::inRegion() const
 {
-    return (getContent() & dictAddrMask) == (dictAddr & dictAddrMask);
+    return {(getContent() & dictAddrMask) == nautilus::val<int8_t*>(dictAddr)};
 }
 
 nautilus::val<uint64_t> DictVar::getHash() const

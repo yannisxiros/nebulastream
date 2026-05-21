@@ -63,7 +63,7 @@ public:
     nautilus::val<uint64_t> getHash() const;
 
 
-    inline static nautilus::val<uint64_t> dictAddr = 0;
+    inline static int8_t* dictAddr = nullptr;
     constexpr static uint64_t dictAddrMask = ~0x03FF; // the upper 64-19=45 bits
 
 private:
